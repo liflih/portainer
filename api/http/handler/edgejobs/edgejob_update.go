@@ -10,7 +10,6 @@ import (
 	"github.com/portainer/libhttp/request"
 	"github.com/portainer/libhttp/response"
 	portainer "github.com/portainer/portainer/api"
-	bolterrors "github.com/portainer/portainer/api/bolt/errors"
 )
 
 type edgeJobUpdatePayload struct {
@@ -32,6 +31,7 @@ func (payload *edgeJobUpdatePayload) Validate(r *http.Request) error {
 // @summary Update an EdgeJob
 // @description **Access policy**: administrator
 // @tags edge_jobs
+// @security ApiKeyAuth
 // @security jwt
 // @accept json
 // @produce json
@@ -55,7 +55,7 @@ func (handler *Handler) edgeJobUpdate(w http.ResponseWriter, r *http.Request) *h
 	}
 
 	edgeJob, err := handler.DataStore.EdgeJob().EdgeJob(portainer.EdgeJobID(edgeJobID))
-	if err == bolterrors.ErrObjectNotFound {
+	if handler.DataStore.IsErrObjectNotFound(err) {
 		return &httperror.HandlerError{http.StatusNotFound, "Unable to find an Edge job with the specified identifier inside the database", err}
 	} else if err != nil {
 		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to find an Edge job with the specified identifier inside the database", err}
@@ -92,7 +92,7 @@ func (handler *Handler) updateEdgeSchedule(edgeJob *portainer.EdgeJob, payload *
 				continue
 			}
 
-			if meta, ok := edgeJob.Endpoints[endpointID]; ok {
+			if meta, exists := edgeJob.Endpoints[endpointID]; exists {
 				endpointsMap[endpointID] = meta
 			} else {
 				endpointsMap[endpointID] = portainer.EdgeJobEndpointMeta{}
@@ -103,13 +103,19 @@ func (handler *Handler) updateEdgeSchedule(edgeJob *portainer.EdgeJob, payload *
 	}
 
 	updateVersion := false
-	if payload.CronExpression != nil {
+	if payload.CronExpression != nil && *payload.CronExpression != edgeJob.CronExpression {
 		edgeJob.CronExpression = *payload.CronExpression
 		updateVersion = true
 	}
 
-	if payload.FileContent != nil {
-		_, err := handler.FileService.StoreEdgeJobFileFromBytes(strconv.Itoa(int(edgeJob.ID)), []byte(*payload.FileContent))
+	fileContent, err := handler.FileService.GetFileContent(edgeJob.ScriptPath, "")
+	if err != nil {
+		return err
+	}
+
+	if payload.FileContent != nil && *payload.FileContent != string(fileContent) {
+		fileContent = []byte(*payload.FileContent)
+		_, err := handler.FileService.StoreEdgeJobFileFromBytes(strconv.Itoa(int(edgeJob.ID)), fileContent)
 		if err != nil {
 			return err
 		}
@@ -117,7 +123,7 @@ func (handler *Handler) updateEdgeSchedule(edgeJob *portainer.EdgeJob, payload *
 		updateVersion = true
 	}
 
-	if payload.Recurring != nil {
+	if payload.Recurring != nil && *payload.Recurring != edgeJob.Recurring {
 		edgeJob.Recurring = *payload.Recurring
 		updateVersion = true
 	}

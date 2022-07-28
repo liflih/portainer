@@ -1,7 +1,11 @@
+import { ResourceControlType } from '@/portainer/access-control/types';
 import { AccessControlFormData } from 'Portainer/components/accessControlForm/porAccessControlFormModel';
+import { FeatureId } from 'Portainer/feature-flags/enums';
+import { getEnvironments } from '@/portainer/environments/environment.service';
 
 angular.module('portainer.app').controller('StackController', [
   '$async',
+  '$compile',
   '$q',
   '$scope',
   '$state',
@@ -17,15 +21,16 @@ angular.module('portainer.app').controller('StackController', [
   'Notifications',
   'FormHelper',
   'EndpointProvider',
-  'EndpointService',
   'GroupService',
   'ModalService',
   'StackHelper',
   'ResourceControlService',
   'Authentication',
   'ContainerHelper',
+  'endpoint',
   function (
     $async,
+    $compile,
     $q,
     $scope,
     $state,
@@ -41,14 +46,24 @@ angular.module('portainer.app').controller('StackController', [
     Notifications,
     FormHelper,
     EndpointProvider,
-    EndpointService,
     GroupService,
     ModalService,
     StackHelper,
     ResourceControlService,
     Authentication,
-    ContainerHelper
+    ContainerHelper,
+    endpoint
   ) {
+    $scope.resourceType = ResourceControlType.Stack;
+
+    $scope.onUpdateResourceControlSuccess = function () {
+      $state.reload();
+    };
+
+    $scope.endpoint = endpoint;
+    $scope.isAdmin = Authentication.isAdmin();
+    $scope.stackWebhookFeature = FeatureId.STACK_WEBHOOK;
+    $scope.stackPullImageFeature = FeatureId.STACK_PULL_IMAGE;
     $scope.state = {
       actionInProgress: false,
       migrationInProgress: false,
@@ -79,16 +94,18 @@ angular.module('portainer.app').controller('StackController', [
       $scope.formValues.Env = value;
     }
 
-    $scope.duplicateStack = function duplicateStack(name, endpointId) {
+    $scope.duplicateStack = function duplicateStack(name, targetEndpointId) {
       var stack = $scope.stack;
       var env = FormHelper.removeInvalidEnvVars($scope.formValues.Env);
-      EndpointProvider.setEndpointID(endpointId);
+      // sets the targetEndpointID as global for interceptors
+      EndpointProvider.setEndpointID(targetEndpointId);
 
-      return StackService.duplicateStack(name, $scope.stackFileContent, env, endpointId, stack.Type).then(onDuplicationSuccess).catch(notifyOnError);
+      return StackService.duplicateStack(name, $scope.stackFileContent, env, targetEndpointId, stack.Type).then(onDuplicationSuccess).catch(notifyOnError);
 
       function onDuplicationSuccess() {
         Notifications.success('Stack successfully duplicated');
         $state.go('docker.stacks', {}, { reload: true });
+        // sets back the original endpointID as global for interceptors
         EndpointProvider.setEndpointID(stack.EndpointId);
       }
 
@@ -132,11 +149,19 @@ angular.module('portainer.app').controller('StackController', [
       });
     };
 
-    function migrateStack(name, endpointId) {
-      var stack = $scope.stack;
-      var targetEndpointId = endpointId;
+    $scope.detachStackFromGit = function () {
+      ModalService.confirmDetachment('Do you want to detach the stack from Git?', function onConfirm(confirmed) {
+        if (!confirmed) {
+          return;
+        }
+        $scope.deployStack();
+      });
+    };
 
-      var migrateRequest = StackService.migrateSwarmStack;
+    function migrateStack(name, targetEndpointId) {
+      const stack = $scope.stack;
+
+      let migrateRequest = StackService.migrateSwarmStack;
       if (stack.Type === 2) {
         migrateRequest = StackService.migrateComposeStack;
       }
@@ -145,9 +170,8 @@ angular.module('portainer.app').controller('StackController', [
       // The EndpointID property is not available for these stacks, we can pass
       // the current endpoint identifier as a part of the migrate request. It will be used if
       // the EndpointID property is not defined on the stack.
-      var originalEndpointId = EndpointProvider.endpointID();
       if (stack.EndpointId === 0) {
-        stack.EndpointId = originalEndpointId;
+        stack.EndpointId = endpoint.Id;
       }
 
       $scope.state.migrationInProgress = true;
@@ -204,33 +228,43 @@ angular.module('portainer.app').controller('StackController', [
     };
 
     $scope.deployStack = function () {
-      var stackFile = $scope.stackFileContent;
-      var env = FormHelper.removeInvalidEnvVars($scope.formValues.Env);
-      var prune = $scope.formValues.Prune;
-      var stack = $scope.stack;
+      const stack = $scope.stack;
+      const tplCrop =
+        '<div>Do you want to force an update of the stack?</div>' +
+        '<div  style="position: absolute; right: 110px; top: 48px; z-index: 999"><be-feature-indicator feature="stackPullImageFeature"></be-feature-indicator></div>';
+      const template = angular.element(tplCrop);
+      const html = $compile(template)($scope);
+      // 'Do you want to force an update of the stack?'
+      ModalService.confirmStackUpdate(html, true, true, null, function (result) {
+        if (!result) {
+          return;
+        }
+        var stackFile = $scope.stackFileContent;
+        var env = FormHelper.removeInvalidEnvVars($scope.formValues.Env);
+        var prune = $scope.formValues.Prune;
 
-      // TODO: this is a work-around for stacks created with Portainer version >= 1.17.1
-      // The EndpointID property is not available for these stacks, we can pass
-      // the current endpoint identifier as a part of the update request. It will be used if
-      // the EndpointID property is not defined on the stack.
-      var endpointId = EndpointProvider.endpointID();
-      if (stack.EndpointId === 0) {
-        stack.EndpointId = endpointId;
-      }
+        // TODO: this is a work-around for stacks created with Portainer version >= 1.17.1
+        // The EndpointID property is not available for these stacks, we can pass
+        // the current endpoint identifier as a part of the update request. It will be used if
+        // the EndpointID property is not defined on the stack.
+        if (stack.EndpointId === 0) {
+          stack.EndpointId = endpoint.Id;
+        }
 
-      $scope.state.actionInProgress = true;
-      StackService.updateStack(stack, stackFile, env, prune)
-        .then(function success() {
-          Notifications.success('Stack successfully deployed');
-          $scope.state.isEditorDirty = false;
-          $state.reload();
-        })
-        .catch(function error(err) {
-          Notifications.error('Failure', err, 'Unable to create stack');
-        })
-        .finally(function final() {
-          $scope.state.actionInProgress = false;
-        });
+        $scope.state.actionInProgress = true;
+        StackService.updateStack(stack, stackFile, env, prune)
+          .then(function success() {
+            Notifications.success('Stack successfully deployed');
+            $scope.state.isEditorDirty = false;
+            $state.reload();
+          })
+          .catch(function error(err) {
+            Notifications.error('Failure', err, 'Unable to create stack');
+          })
+          .finally(function final() {
+            $scope.state.actionInProgress = false;
+          });
+      });
     };
 
     $scope.editorUpdate = function (cm) {
@@ -282,60 +316,62 @@ angular.module('portainer.app').controller('StackController', [
     }
 
     function loadStack(id) {
-      var agentProxy = $scope.applicationState.endpoint.mode.agentProxy;
+      return $async(() => {
+        var agentProxy = $scope.applicationState.endpoint.mode.agentProxy;
 
-      EndpointService.endpoints()
-        .then(function success(data) {
-          $scope.endpoints = data.value;
-        })
-        .catch(function error(err) {
-          Notifications.error('Failure', err, 'Unable to retrieve environments');
-        });
-
-      $q.all({
-        stack: StackService.stack(id),
-        groups: GroupService.groups(),
-        containers: ContainerService.containers(true),
-      })
-        .then(function success(data) {
-          var stack = data.stack;
-          $scope.groups = data.groups;
-          $scope.stack = stack;
-          $scope.containerNames = ContainerHelper.getContainerNames(data.containers);
-
-          $scope.formValues.Env = $scope.stack.Env;
-
-          let resourcesPromise = Promise.resolve({});
-          if (!stack.Status || stack.Status === 1) {
-            resourcesPromise = stack.Type === 1 ? retrieveSwarmStackResources(stack.Name, agentProxy) : retrieveComposeStackResources(stack.Name);
-          }
-
-          return $q.all({
-            stackFile: StackService.getStackFile(id),
-            resources: resourcesPromise,
+        getEnvironments()
+          .then(function success(data) {
+            $scope.endpoints = data.value;
+          })
+          .catch(function error(err) {
+            Notifications.error('Failure', err, 'Unable to retrieve environments');
           });
-        })
-        .then(function success(data) {
-          const isSwarm = $scope.stack.Type === 1;
-          $scope.stackFileContent = data.stackFile;
-          // workaround for missing status, if stack has resources, set the status to 1 (active), otherwise to 2 (inactive) (https://github.com/portainer/portainer/issues/4422)
-          if (!$scope.stack.Status) {
-            $scope.stack.Status = data.resources && ((isSwarm && data.resources.services.length) || data.resources.containers.length) ? 1 : 2;
-          }
 
-          if ($scope.stack.Status === 1) {
-            if (isSwarm) {
-              assignSwarmStackResources(data.resources, agentProxy);
-            } else {
-              assignComposeStackResources(data.resources);
+        $q.all({
+          stack: StackService.stack(id),
+          groups: GroupService.groups(),
+          containers: ContainerService.containers(true),
+        })
+          .then(function success(data) {
+            var stack = data.stack;
+            $scope.groups = data.groups;
+            $scope.stack = stack;
+            $scope.containerNames = ContainerHelper.getContainerNames(data.containers);
+
+            $scope.formValues.Env = $scope.stack.Env;
+
+            let resourcesPromise = Promise.resolve({});
+            if (!stack.Status || stack.Status === 1) {
+              resourcesPromise = stack.Type === 1 ? retrieveSwarmStackResources(stack.Name, agentProxy) : retrieveComposeStackResources(stack.Name);
             }
-          }
 
-          $scope.state.yamlError = StackHelper.validateYAML($scope.stackFileContent, $scope.containerNames);
-        })
-        .catch(function error(err) {
-          Notifications.error('Failure', err, 'Unable to retrieve stack details');
-        });
+            return $q.all({
+              stackFile: StackService.getStackFile(id),
+              resources: resourcesPromise,
+            });
+          })
+          .then(function success(data) {
+            const isSwarm = $scope.stack.Type === 1;
+            $scope.stackFileContent = data.stackFile;
+            // workaround for missing status, if stack has resources, set the status to 1 (active), otherwise to 2 (inactive) (https://github.com/portainer/portainer/issues/4422)
+            if (!$scope.stack.Status) {
+              $scope.stack.Status = data.resources && ((isSwarm && data.resources.services.length) || data.resources.containers.length) ? 1 : 2;
+            }
+
+            if ($scope.stack.Status === 1) {
+              if (isSwarm) {
+                assignSwarmStackResources(data.resources, agentProxy);
+              } else {
+                assignComposeStackResources(data.resources);
+              }
+            }
+
+            $scope.state.yamlError = StackHelper.validateYAML($scope.stackFileContent, $scope.containerNames);
+          })
+          .catch(function error(err) {
+            Notifications.error('Failure', err, 'Unable to retrieve stack details');
+          });
+      });
     }
 
     function retrieveSwarmStackResources(stackName, agentProxy) {
@@ -433,8 +469,6 @@ angular.module('portainer.app').controller('StackController', [
       var stackName = $transition$.params().name;
       $scope.stackName = stackName;
 
-      $scope.currentEndpointId = EndpointProvider.endpointID();
-
       const regular = $transition$.params().regular == 'true';
       $scope.regular = regular;
 
@@ -456,12 +490,7 @@ angular.module('portainer.app').controller('StackController', [
         loadStack(stackId);
       }
 
-      try {
-        const endpoint = EndpointProvider.currentEndpoint();
-        $scope.composeSyntaxMaxVersion = endpoint.ComposeSyntaxMaxVersion;
-      } catch (err) {
-        Notifications.error('Failure', err, 'Unable to retrieve the ComposeSyntaxMaxVersion');
-      }
+      $scope.composeSyntaxMaxVersion = endpoint.ComposeSyntaxMaxVersion;
 
       $scope.stackType = $transition$.params().type;
     }

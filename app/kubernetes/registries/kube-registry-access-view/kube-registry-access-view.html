@@ -1,7 +1,4 @@
-<rd-header>
-  <rd-header-title title-text="Registry access"></rd-header-title>
-  <rd-header-content> <a ui-sref="kubernetes.registries">Registries</a> &gt; {{ $ctrl.registry.Name }} &gt; Access management </rd-header-content>
-</rd-header>
+<page-header title="'Registry access'" breadcrumbs="[{label:'Registries', link:'kubernetes.registries'}, $ctrl.registry.Name, 'Access management']"> </page-header>
 
 <registry-details registry="$ctrl.registry" ng-if="$ctrl.registry"></registry-details>
 
@@ -12,13 +9,9 @@
       <rd-widget-body>
         <form class="form-horizontal">
           <div class="form-group">
-            <label class="col-sm-3 col-lg-2 control-label text-left" style="padding-top: 0;">
-              Select namespaces
-            </label>
-            <div class="col-sm-9 col-lg-4" style="margin-bottom: 15px;">
-              <span class="small text-muted" ng-if="!$ctrl.resourcePools.length">
-                No namespaces available.
-              </span>
+            <label class="col-sm-3 col-lg-2 control-label text-left" style="padding-top: 0"> Select namespaces </label>
+            <div class="col-sm-9 col-lg-4" style="margin-bottom: 15px">
+              <span class="small text-muted" ng-if="!$ctrl.resourcePools.length"> No namespaces available. </span>
               <span
                 isteven-multi-select
                 ng-if="$ctrl.resourcePools.length"
@@ -34,7 +27,7 @@
               </span>
             </div>
             <div class="col-sm-12 small text-muted">
-              <i class="fa fa-exclamation-circle orange-icon" aria-hidden="true" style="margin-right: 2px;"></i>
+              <i class="fa fa-exclamation-circle orange-icon" aria-hidden="true" style="margin-right: 2px"></i>
               Note: adding this registry will expose the registry credentials to all users of this namespace
             </div>
           </div>

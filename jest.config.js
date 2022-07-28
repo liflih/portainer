@@ -54,7 +54,7 @@ module.exports = {
   // forceCoverageMatch: [],
 
   // A path to a module which exports an async function that is triggered once before all test suites
-  globalSetup: `<rootDir>/app/setup-tests.js`,
+  globalSetup: `<rootDir>/app/setup-tests/global-setup.js`,
 
   // A path to a module which exports an async function that is triggered once after all test suites
   // globalTeardown: undefined,
@@ -83,13 +83,15 @@ module.exports = {
   // A map from regular expressions to module names or to arrays of module names that allow to stub out resources with a single module
   moduleNameMapper: {
     '\\.(jpg|jpeg|png|gif|eot|otf|webp|svg|ttf|woff|woff2|mp4|webm|wav|mp3|m4a|aac|oga)$': '<rootDir>/app/__mocks__/fileMock.js',
+    '\\.svg\\?c$': '<rootDir>/app/__mocks__/svg.js',
     '\\.(css|less)$': '<rootDir>/app/__mocks__/styleMock.js',
+    '^@@/(.*)$': '<rootDir>/app/react/components/$1',
+    '^@/(.*)$': '<rootDir>/app/$1',
     '^Agent/(.*)?': '<rootDir>/app/agent/$1',
     '^Azure/(.*)$': '<rootDir>/app/azure/$1',
     '^Docker/(.*)$': '<rootDir>/app/docker/$1',
     '^Kubernetes/(.*)$': '<rootDir>/app/kubernetes/$1',
     '^Portainer/(.*)$': '<rootDir>/app/portainer/$1',
-    '^@/(.*)$': '<rootDir>/app/$1',
   },
 
   // An array of regexp pattern strings, matched against all module paths before considered 'visible' to the module loader
@@ -135,7 +137,7 @@ module.exports = {
   // setupFiles: [],
 
   // A list of paths to modules that run some code to configure or set up the testing framework before each test
-  // setupFilesAfterEnv: [],
+  setupFilesAfterEnv: ['<rootDir>/app/setup-tests/setup-msw.ts'],
 
   // The number of seconds after which a test is considered as slow and reported as such in the results.
   // slowTestThreshold: 5,

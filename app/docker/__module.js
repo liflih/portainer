@@ -1,4 +1,10 @@
-angular.module('portainer.docker', ['portainer.app']).config([
+import angular from 'angular';
+
+import { EnvironmentStatus } from '@/portainer/environments/types';
+
+import { reactModule } from './react';
+
+angular.module('portainer.docker', ['portainer.app', reactModule]).config([
   '$stateRegistryProvider',
   function ($stateRegistryProvider) {
     'use strict';
@@ -8,7 +14,7 @@ angular.module('portainer.docker', ['portainer.app']).config([
       parent: 'endpoint',
       url: '/docker',
       abstract: true,
-      onEnter: /* @ngInject */ function onEnter(endpoint, $async, $state, EndpointService, EndpointProvider, LegacyExtensionManager, Notifications, StateManager, SystemService) {
+      onEnter: /* @ngInject */ function onEnter(endpoint, $async, $state, EndpointService, EndpointProvider, Notifications, StateManager, SystemService) {
         return $async(async () => {
           if (![1, 2, 4].includes(endpoint.Type)) {
             $state.go('portainer.home');
@@ -22,21 +28,15 @@ angular.module('portainer.docker', ['portainer.app']).config([
             }
             endpoint.Status = status;
 
-            if (status === 2) {
-              if (!endpoint.Snapshots[0]) {
-                throw new Error('Environment is unreachable and there is no snapshot available for offline browsing.');
-              }
-              if (endpoint.Snapshots[0].Swarm) {
-                throw new Error('Environment is unreachable. Connect to another swarm manager.');
-              }
+            if (status === EnvironmentStatus.Down) {
+              throw new Error('Environment is unreachable.');
             }
 
             EndpointProvider.setEndpointID(endpoint.Id);
             EndpointProvider.setEndpointPublicURL(endpoint.PublicURL);
             EndpointProvider.setOfflineModeFromStatus(endpoint.Status);
 
-            const extensions = await LegacyExtensionManager.initEndpointExtensions(endpoint);
-            await StateManager.updateEndpointState(endpoint, extensions);
+            await StateManager.updateEndpointState(endpoint);
           } catch (e) {
             Notifications.error('Failed loading environment', e);
             $state.go('portainer.home', {}, { reload: true });
@@ -323,8 +323,7 @@ angular.module('portainer.docker', ['portainer.app']).config([
       url: '/:id?nodeName',
       views: {
         'content@': {
-          templateUrl: './views/networks/edit/network.html',
-          controller: 'NetworkController',
+          component: 'networkDetailsView',
         },
       },
     };

@@ -2,6 +2,7 @@ package edgestacks
 
 import (
 	"errors"
+	"github.com/portainer/portainer/api/internal/endpointutils"
 	"net/http"
 	"strconv"
 
@@ -9,7 +10,6 @@ import (
 	"github.com/portainer/libhttp/request"
 	"github.com/portainer/libhttp/response"
 	portainer "github.com/portainer/portainer/api"
-	bolterrors "github.com/portainer/portainer/api/bolt/errors"
 	"github.com/portainer/portainer/api/filesystem"
 	"github.com/portainer/portainer/api/internal/edge"
 )
@@ -35,6 +35,7 @@ func (payload *updateEdgeStackPayload) Validate(r *http.Request) error {
 // @summary Update an EdgeStack
 // @description **Access policy**: administrator
 // @tags edge_stacks
+// @security ApiKeyAuth
 // @security jwt
 // @accept json
 // @produce json
@@ -52,7 +53,7 @@ func (handler *Handler) edgeStackUpdate(w http.ResponseWriter, r *http.Request) 
 	}
 
 	stack, err := handler.DataStore.EdgeStack().EdgeStack(portainer.EdgeStackID(stackID))
-	if err == bolterrors.ErrObjectNotFound {
+	if handler.DataStore.IsErrObjectNotFound(err) {
 		return &httperror.HandlerError{http.StatusNotFound, "Unable to find a stack with the specified identifier inside the database", err}
 	} else if err != nil {
 		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to find a stack with the specified identifier inside the database", err}
@@ -80,8 +81,8 @@ func (handler *Handler) edgeStackUpdate(w http.ResponseWriter, r *http.Request) 
 			return &httperror.HandlerError{http.StatusInternalServerError, "Unable to retrieve edge stack related environments from database", err}
 		}
 
-		oldRelatedSet := EndpointSet(relatedEndpointIds)
-		newRelatedSet := EndpointSet(newRelated)
+		oldRelatedSet := endpointutils.EndpointSet(relatedEndpointIds)
+		newRelatedSet := endpointutils.EndpointSet(newRelated)
 
 		endpointsToRemove := map[portainer.EndpointID]bool{}
 		for endpointID := range oldRelatedSet {
@@ -188,14 +189,4 @@ func (handler *Handler) edgeStackUpdate(w http.ResponseWriter, r *http.Request) 
 	}
 
 	return response.JSON(w, stack)
-}
-
-func EndpointSet(endpointIDs []portainer.EndpointID) map[portainer.EndpointID]bool {
-	set := map[portainer.EndpointID]bool{}
-
-	for _, endpointID := range endpointIDs {
-		set[endpointID] = true
-	}
-
-	return set
 }

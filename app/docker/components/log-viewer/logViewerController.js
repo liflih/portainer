@@ -1,11 +1,13 @@
 import moment from 'moment';
 import _ from 'lodash-es';
+import { NEW_LINE_BREAKER } from '@/constants';
 
 angular.module('portainer.docker').controller('LogViewerController', [
+  '$scope',
   'clipboard',
   'Blob',
   'FileSaver',
-  function (clipboard, Blob, FileSaver) {
+  function ($scope, clipboard, Blob, FileSaver) {
     this.state = {
       availableSinceDatetime: [
         { desc: 'Last day', value: moment().subtract(1, 'days').format() },
@@ -22,14 +24,38 @@ angular.module('portainer.docker').controller('LogViewerController', [
       selectedLines: [],
     };
 
+    this.handleLogsCollectionChange = handleLogsCollectionChange.bind(this);
+    this.handleLogsWrapLinesChange = handleLogsWrapLinesChange.bind(this);
+    this.handleDisplayTimestampsChange = handleDisplayTimestampsChange.bind(this);
+
+    function handleLogsCollectionChange(enabled) {
+      $scope.$evalAsync(() => {
+        this.state.logCollection = enabled;
+        this.state.autoScroll = enabled;
+        this.logCollectionChange(enabled);
+      });
+    }
+
+    function handleLogsWrapLinesChange(enabled) {
+      $scope.$evalAsync(() => {
+        this.state.wrapLines = enabled;
+      });
+    }
+
+    function handleDisplayTimestampsChange(enabled) {
+      $scope.$evalAsync(() => {
+        this.displayTimestamps = enabled;
+      });
+    }
+
     this.copy = function () {
-      clipboard.copyText(this.state.filteredLogs.map((log) => log.line));
+      clipboard.copyText(this.state.filteredLogs.map((log) => log.line).join(NEW_LINE_BREAKER));
       $('#refreshRateChange').show();
       $('#refreshRateChange').fadeOut(2000);
     };
 
     this.copySelection = function () {
-      clipboard.copyText(this.state.selectedLines);
+      clipboard.copyText(this.state.selectedLines.join(NEW_LINE_BREAKER));
       $('#refreshRateChange').show();
       $('#refreshRateChange').fadeOut(2000);
     };
@@ -48,7 +74,9 @@ angular.module('portainer.docker').controller('LogViewerController', [
     };
 
     this.downloadLogs = function () {
-      const data = new Blob([_.reduce(this.state.filteredLogs, (acc, log) => acc + '\n' + log.line, '')]);
+      // To make the feature of downloading container logs working both on Windows and Linux,
+      // we need to use correct new line breakers on corresponding OS.
+      const data = new Blob([_.reduce(this.state.filteredLogs, (acc, log) => acc + log.line + NEW_LINE_BREAKER, '')]);
       FileSaver.saveAs(data, this.resourceName + '_logs.txt');
     };
   },

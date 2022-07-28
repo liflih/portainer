@@ -1,29 +1,32 @@
 import { Terminal } from 'xterm';
+import { baseHref } from '@/portainer/helpers/pathHelper';
 
 angular.module('portainer.docker').controller('ContainerConsoleController', [
   '$scope',
+  '$state',
   '$transition$',
   'ContainerService',
   'ImageService',
-  'EndpointProvider',
   'Notifications',
   'ContainerHelper',
   'ExecService',
   'HttpRequestHelper',
   'LocalStorage',
   'CONSOLE_COMMANDS_LABEL_PREFIX',
+  'SidebarService',
   function (
     $scope,
+    $state,
     $transition$,
     ContainerService,
     ImageService,
-    EndpointProvider,
     Notifications,
     ContainerHelper,
     ExecService,
     HttpRequestHelper,
     LocalStorage,
-    CONSOLE_COMMANDS_LABEL_PREFIX
+    CONSOLE_COMMANDS_LABEL_PREFIX,
+    SidebarService
   ) {
     var socket, term;
 
@@ -64,12 +67,13 @@ angular.module('portainer.docker').controller('ContainerConsoleController', [
 
           const params = {
             token: LocalStorage.getJWT(),
-            endpointId: EndpointProvider.endpointID(),
+            endpointId: $state.params.endpointId,
             id: attachId,
           };
 
+          const base = window.location.origin.startsWith('http') ? `${window.location.origin}${baseHref()}` : baseHref();
           var url =
-            window.location.href.split('#')[0] +
+            base +
             'api/websocket/attach?' +
             Object.keys(params)
               .map((k) => k + '=' + params[k])
@@ -104,12 +108,13 @@ angular.module('portainer.docker').controller('ContainerConsoleController', [
         .then(function success(data) {
           const params = {
             token: LocalStorage.getJWT(),
-            endpointId: EndpointProvider.endpointID(),
+            endpointId: $state.params.endpointId,
             id: data.Id,
           };
 
+          const base = window.location.origin.startsWith('http') ? `${window.location.origin}${baseHref()}` : baseHref();
           var url =
-            window.location.href.split('#')[0] +
+            base +
             'api/websocket/exec?' +
             Object.keys(params)
               .map((k) => k + '=' + params[k])
@@ -186,7 +191,7 @@ angular.module('portainer.docker').controller('ContainerConsoleController', [
           $scope.$apply();
         };
 
-        $scope.$watch('toggle', function () {
+        $scope.$watch(SidebarService.isSidebarOpen, function () {
           setTimeout(resizefun, 400);
         });
 
@@ -236,6 +241,12 @@ angular.module('portainer.docker').controller('ContainerConsoleController', [
         .catch(function error(err) {
           Notifications.error('Error', err, 'Unable to retrieve container details');
         });
+    };
+
+    $scope.handleIsCustomCommandChange = function (enabled) {
+      $scope.$evalAsync(() => {
+        $scope.formValues.isCustomCommand = enabled;
+      });
     };
   },
 ]);

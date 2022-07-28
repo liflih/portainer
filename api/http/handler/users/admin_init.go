@@ -57,6 +57,10 @@ func (handler *Handler) adminInit(w http.ResponseWriter, r *http.Request) *httpe
 		return &httperror.HandlerError{http.StatusConflict, "Unable to create administrator user", errAdminAlreadyInitialized}
 	}
 
+	if !handler.passwordStrengthChecker.Check(payload.Password) {
+		return &httperror.HandlerError{http.StatusBadRequest, "Password does not meet the requirements", nil}
+	}
+
 	user := &portainer.User{
 		Username: payload.Username,
 		Role:     portainer.AdministratorRole,
@@ -67,7 +71,7 @@ func (handler *Handler) adminInit(w http.ResponseWriter, r *http.Request) *httpe
 		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to hash user password", errCryptoHashFailure}
 	}
 
-	err = handler.DataStore.User().CreateUser(user)
+	err = handler.DataStore.User().Create(user)
 	if err != nil {
 		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to persist user inside the database", err}
 	}

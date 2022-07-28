@@ -4,13 +4,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/asaskevich/govalidator"
 	"github.com/pkg/errors"
 	httperror "github.com/portainer/libhttp/error"
 	"github.com/portainer/libhttp/request"
 	"github.com/portainer/libhttp/response"
 	portainer "github.com/portainer/portainer/api"
-	bolterrors "github.com/portainer/portainer/api/bolt/errors"
 	gittypes "github.com/portainer/portainer/api/git/types"
 	httperrors "github.com/portainer/portainer/api/http/errors"
 	"github.com/portainer/portainer/api/http/security"
@@ -20,6 +18,7 @@ import (
 type stackGitUpdatePayload struct {
 	AutoUpdate               *portainer.StackAutoUpdate
 	Env                      []portainer.Pair
+	Prune                    bool
 	RepositoryReferenceName  string
 	RepositoryAuthentication bool
 	RepositoryUsername       string
@@ -27,10 +26,6 @@ type stackGitUpdatePayload struct {
 }
 
 func (payload *stackGitUpdatePayload) Validate(r *http.Request) error {
-	if govalidator.IsNull(payload.RepositoryReferenceName) {
-		payload.RepositoryReferenceName = defaultGitReferenceName
-	}
-
 	if err := validateStackAutoUpdate(payload.AutoUpdate); err != nil {
 		return err
 	}
@@ -42,6 +37,7 @@ func (payload *stackGitUpdatePayload) Validate(r *http.Request) error {
 // @description Update the Git settings in a stack, e.g., RepositoryReferenceName and AutoUpdate
 // @description **Access policy**: authenticated
 // @tags stacks
+// @security ApiKeyAuth
 // @security jwt
 // @accept json
 // @produce json
@@ -53,7 +49,7 @@ func (payload *stackGitUpdatePayload) Validate(r *http.Request) error {
 // @failure 403 "Permission denied"
 // @failure 404 "Not found"
 // @failure 500 "Server error"
-// @router /stacks/{id}/git [put]
+// @router /stacks/{id}/git [post]
 func (handler *Handler) stackUpdateGit(w http.ResponseWriter, r *http.Request) *httperror.HandlerError {
 	stackID, err := request.RetrieveNumericRouteVariableValue(r, "id")
 	if err != nil {
@@ -67,7 +63,7 @@ func (handler *Handler) stackUpdateGit(w http.ResponseWriter, r *http.Request) *
 	}
 
 	stack, err := handler.DataStore.Stack().Stack(portainer.StackID(stackID))
-	if err == bolterrors.ErrObjectNotFound {
+	if handler.DataStore.IsErrObjectNotFound(err) {
 		return &httperror.HandlerError{StatusCode: http.StatusNotFound, Message: "Unable to find a stack with the specified identifier inside the database", Err: err}
 	} else if err != nil {
 		return &httperror.HandlerError{StatusCode: http.StatusInternalServerError, Message: "Unable to find a stack with the specified identifier inside the database", Err: err}
@@ -88,7 +84,7 @@ func (handler *Handler) stackUpdateGit(w http.ResponseWriter, r *http.Request) *
 	}
 
 	endpoint, err := handler.DataStore.Endpoint().Endpoint(stack.EndpointID)
-	if err == bolterrors.ErrObjectNotFound {
+	if handler.DataStore.IsErrObjectNotFound(err) {
 		return &httperror.HandlerError{StatusCode: http.StatusNotFound, Message: "Unable to find the environment associated to the stack inside the database", Err: err}
 	} else if err != nil {
 		return &httperror.HandlerError{StatusCode: http.StatusInternalServerError, Message: "Unable to find the environment associated to the stack inside the database", Err: err}
@@ -136,7 +132,12 @@ func (handler *Handler) stackUpdateGit(w http.ResponseWriter, r *http.Request) *
 	stack.UpdatedBy = user.Username
 	stack.UpdateDate = time.Now().Unix()
 
-	stack.GitConfig.Authentication = nil
+	if stack.Type == portainer.DockerSwarmStack {
+		stack.Option = &portainer.StackOption{
+			Prune: payload.Prune,
+		}
+	}
+
 	if payload.RepositoryAuthentication {
 		password := payload.RepositoryPassword
 		if password == "" && stack.GitConfig != nil && stack.GitConfig.Authentication != nil {
@@ -150,6 +151,8 @@ func (handler *Handler) stackUpdateGit(w http.ResponseWriter, r *http.Request) *
 		if err != nil {
 			return &httperror.HandlerError{StatusCode: http.StatusInternalServerError, Message: "Unable to fetch git repository", Err: err}
 		}
+	} else {
+		stack.GitConfig.Authentication = nil
 	}
 
 	if payload.AutoUpdate != nil && payload.AutoUpdate.Interval != "" {

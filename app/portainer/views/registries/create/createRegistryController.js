@@ -1,10 +1,11 @@
+import _ from 'lodash';
 import { RegistryTypes } from 'Portainer/models/registryTypes';
 import { RegistryCreateFormValues } from 'Portainer/models/registry';
 
 class CreateRegistryController {
   /* @ngInject */
-  constructor($async, $state, EndpointProvider, Notifications, RegistryService, RegistryGitlabService) {
-    Object.assign(this, { $async, $state, EndpointProvider, Notifications, RegistryService, RegistryGitlabService });
+  constructor($async, $state, Notifications, RegistryService, RegistryGitlabService) {
+    Object.assign(this, { $async, $state, Notifications, RegistryService, RegistryGitlabService });
 
     this.RegistryTypes = RegistryTypes;
     this.state = {
@@ -17,9 +18,12 @@ class CreateRegistryController {
         selectedItems: [],
       },
       originViewReference: 'portainer.registries',
+      originalEndpointId: null,
     };
 
     this.createRegistry = this.createRegistry.bind(this);
+    this.getRegistries = this.getRegistries.bind(this);
+    this.nameIsUsed = this.nameIsUsed.bind(this);
     this.retrieveGitlabRegistries = this.retrieveGitlabRegistries.bind(this);
     this.createGitlabRegistries = this.createGitlabRegistries.bind(this);
   }
@@ -74,6 +78,18 @@ class CreateRegistryController {
     this.model.Authentication = true;
   }
 
+  useDefaultEcrConfiguration() {
+    this.model.Ecr.Region = '';
+  }
+
+  selectEcr() {
+    this.model.Name = '';
+    this.model.URL = '';
+    this.model.Authentication = false;
+    this.model.Ecr = {};
+    this.useDefaultEcrConfiguration();
+  }
+
   retrieveGitlabRegistries() {
     return this.$async(async () => {
       this.state.actionInProgress = true;
@@ -93,7 +109,7 @@ class CreateRegistryController {
         this.state.actionInProgress = true;
         await this.RegistryService.createGitlabRegistries(this.model, this.state.gitlab.selectedItems);
         this.Notifications.success('Registries successfully created');
-        this.$state.go(this.state.originViewReference, { endpointId: this.EndpointProvider.endpointID() });
+        this.$state.go(this.state.originViewReference, { endpointId: this.state.originalEndpointId });
       } catch (err) {
         this.Notifications.error('Failure', err, 'Unable to create registries');
         this.state.actionInProgress = false;
@@ -107,7 +123,7 @@ class CreateRegistryController {
         this.state.actionInProgress = true;
         await this.RegistryService.createRegistry(this.model);
         this.Notifications.success('Registry successfully created');
-        this.$state.go(this.state.originViewReference, { endpointId: this.EndpointProvider.endpointID() });
+        this.$state.go(this.state.originViewReference, { endpointId: this.state.originalEndpointId });
       } catch (err) {
         this.Notifications.error('Failure', err, 'Unable to create registry');
         this.state.actionInProgress = false;
@@ -115,13 +131,36 @@ class CreateRegistryController {
     });
   }
 
-  $onInit() {
-    this.model = new RegistryCreateFormValues();
+  nameIsUsed(name) {
+    return _.includes(this.registriesNames, name);
+  }
 
-    const origin = this.$transition$.originalTransition().from();
-    if (origin.name && /^[a-z]+\.registries$/.test(origin.name)) {
-      this.state.originViewReference = origin;
-    }
+  getRegistries() {
+    return this.$async(async () => {
+      try {
+        const registries = await this.RegistryService.registries();
+        this.registriesNames = _.map(registries, 'Name');
+      } catch (err) {
+        this.Notifications.error('Failure', err, 'Unable to fetch existing registries');
+      }
+    });
+  }
+
+  $onInit() {
+    return this.$async(async () => {
+      this.model = new RegistryCreateFormValues();
+      this.model.Type = RegistryTypes.DOCKERHUB;
+      this.selectDockerHub();
+
+      const from = this.$transition$.from();
+      const params = this.$transition$.params('from');
+
+      if (from.name && /^[a-z]+\.registries$/.test(from.name)) {
+        this.state.originViewReference = from;
+        this.state.originalEndpointId = params.endpointId || null;
+      }
+      await this.getRegistries();
+    });
   }
 }
 

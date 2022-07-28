@@ -2,11 +2,12 @@ package kubernetes
 
 import (
 	"errors"
+	"github.com/portainer/portainer/api/kubernetes"
 	"net/http"
 
 	"github.com/gorilla/mux"
 	httperror "github.com/portainer/libhttp/error"
-	portainer "github.com/portainer/portainer/api"
+	"github.com/portainer/portainer/api/dataservices"
 	"github.com/portainer/portainer/api/http/middlewares"
 	"github.com/portainer/portainer/api/http/security"
 	"github.com/portainer/portainer/api/internal/authorization"
@@ -17,36 +18,41 @@ import (
 // Handler is the HTTP handler which will natively deal with to external environments(endpoints).
 type Handler struct {
 	*mux.Router
-	dataStore               portainer.DataStore
-	kubernetesClientFactory *cli.ClientFactory
-	authorizationService    *authorization.Service
-	JwtService              portainer.JWTService
+	authorizationService     *authorization.Service
+	dataStore                dataservices.DataStore
+	jwtService               dataservices.JWTService
+	kubernetesClientFactory  *cli.ClientFactory
+	kubeClusterAccessService kubernetes.KubeClusterAccessService
 }
 
 // NewHandler creates a handler to process pre-proxied requests to external APIs.
-func NewHandler(bouncer *security.RequestBouncer, authorizationService *authorization.Service, dataStore portainer.DataStore, kubernetesClientFactory *cli.ClientFactory) *Handler {
+func NewHandler(bouncer *security.RequestBouncer, authorizationService *authorization.Service, dataStore dataservices.DataStore, jwtService dataservices.JWTService, kubeClusterAccessService kubernetes.KubeClusterAccessService, kubernetesClientFactory *cli.ClientFactory) *Handler {
 	h := &Handler{
-		Router:                  mux.NewRouter(),
-		dataStore:               dataStore,
-		kubernetesClientFactory: kubernetesClientFactory,
-		authorizationService:    authorizationService,
+		Router:                   mux.NewRouter(),
+		authorizationService:     authorizationService,
+		dataStore:                dataStore,
+		jwtService:               jwtService,
+		kubeClusterAccessService: kubeClusterAccessService,
+		kubernetesClientFactory:  kubernetesClientFactory,
 	}
 
-	kubeRouter := h.PathPrefix("/kubernetes/{id}").Subrouter()
-
+	kubeRouter := h.PathPrefix("/kubernetes").Subrouter()
 	kubeRouter.Use(bouncer.AuthenticatedAccess)
-	kubeRouter.Use(middlewares.WithEndpoint(dataStore.Endpoint(), "id"))
-	kubeRouter.Use(kubeOnlyMiddleware)
-
 	kubeRouter.PathPrefix("/config").Handler(
 		bouncer.AuthenticatedAccess(httperror.LoggerHandler(h.getKubernetesConfig))).Methods(http.MethodGet)
-	kubeRouter.PathPrefix("/nodes_limits").Handler(
+
+	// endpoints
+	endpointRouter := kubeRouter.PathPrefix("/{id}").Subrouter()
+	endpointRouter.Use(middlewares.WithEndpoint(dataStore.Endpoint(), "id"))
+	endpointRouter.Use(kubeOnlyMiddleware)
+
+	endpointRouter.PathPrefix("/nodes_limits").Handler(
 		bouncer.AuthenticatedAccess(httperror.LoggerHandler(h.getKubernetesNodesLimits))).Methods(http.MethodGet)
 
 	// namespaces
 	// in the future this piece of code might be in another package (or a few different packages - namespaces/namespace?)
 	// to keep it simple, we've decided to leave it like this.
-	namespaceRouter := kubeRouter.PathPrefix("/namespaces/{namespace}").Subrouter()
+	namespaceRouter := endpointRouter.PathPrefix("/namespaces/{namespace}").Subrouter()
 	namespaceRouter.Handle("/system", bouncer.RestrictedAccess(httperror.LoggerHandler(h.namespacesToggleSystem))).Methods(http.MethodPut)
 
 	return h

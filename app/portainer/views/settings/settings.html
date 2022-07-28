@@ -1,75 +1,78 @@
-<rd-header>
-  <rd-header-title title-text="Settings"></rd-header-title>
-  <rd-header-content>Settings</rd-header-content>
-</rd-header>
+<page-header title="'Settings'" breadcrumbs="['Settings']"> </page-header>
 
 <div class="row">
   <div class="col-sm-12">
     <rd-widget>
-      <rd-widget-header icon="fa-cogs" title-text="Application settings"></rd-widget-header>
+      <rd-widget-header icon="settings" feather-icon="true" title-text="Application settings"></rd-widget-header>
       <rd-widget-body>
         <form class="form-horizontal">
           <!-- snapshot-interval -->
           <div class="form-group">
             <label for="snapshot_interval" class="col-sm-2 control-label text-left">Snapshot interval</label>
-            <div class="col-sm-10">
+            <div class="col-sm-8">
               <input type="text" class="form-control" ng-model="settings.SnapshotInterval" id="snapshot_interval" placeholder="e.g. 15m" />
             </div>
           </div>
           <!-- !snapshot-interval -->
           <!-- logo -->
           <div class="form-group">
-            <div class="col-sm-12">
-              <label for="toggle_logo" class="control-label text-left">
-                Use custom logo
-              </label>
-              <label class="switch" style="margin-left: 20px;"> <input type="checkbox" name="toggle_logo" ng-model="formValues.customLogo" /><i></i> </label>
+            <por-switch-field
+              label="'Use custom logo'"
+              checked="formValues.customLogo"
+              name="'toggle_logo'"
+              disabled="state.isDemo"
+              on-change="(onToggleCustomLogo)"
+              field-class="'col-sm-12'"
+              label-class="'col-sm-2'"
+            ></por-switch-field>
+            <div class="col-sm-12" ng-if="state.isDemo" style="margin-top: 10px">
+              <span class="small text-muted">You cannot use this feature in the demo version of Portainer.</span>
             </div>
           </div>
-          <div class="form-group">
-            <div class="col-sm-12">
-              <label for="toggle_enableTelemetry" class="control-label text-left">
-                Allow the collection of anonymous statistics
-              </label>
-              <label class="switch" style="margin-left: 20px;"> <input type="checkbox" name="toggle_enableTelemetry" ng-model="formValues.enableTelemetry" /><i></i> </label>
-            </div>
-            <div class="col-sm-12 text-muted small" style="margin-top: 10px;">
-              You can find more information about this in our
-              <a href="https://www.portainer.io/documentation/in-app-analytics-and-privacy-policy/" target="_blank">privacy policy</a>.
-            </div>
-          </div>
+
           <div ng-if="formValues.customLogo">
             <div class="form-group">
-              <span class="col-sm-12 text-muted small">
-                You can specify the URL to your logo here. For an optimal display, logo dimensions should be 155px by 55px.
-              </span>
+              <span class="col-sm-12 text-muted small"> You can specify the URL to your logo here. For an optimal display, logo dimensions should be 155px by 55px. </span>
             </div>
             <div class="form-group">
-              <label for="logo_url" class="col-sm-1 control-label text-left">
-                URL
-              </label>
-              <div class="col-sm-11">
+              <label for="logo_url" class="col-sm-2 control-label text-left"> URL </label>
+              <div class="col-sm-8">
                 <input type="text" class="form-control" ng-model="settings.LogoURL" id="logo_url" placeholder="https://mycompany.com/logo.png" />
               </div>
             </div>
           </div>
           <!-- !logo -->
-          <!-- templates -->
-          <div class="col-sm-12 form-section-title">
-            App Templates
+
+          <div class="form-group">
+            <por-switch-field
+              label="'Allow the collection of anonymous statistics'"
+              checked="formValues.enableTelemetry"
+              name="'toggle_enableTelemetry'"
+              on-change="(onToggleEnableTelemetry)"
+              disabled="state.isDemo"
+              field-class="'col-sm-12'"
+              label-class="'col-sm-2'"
+            ></por-switch-field>
+            <div class="col-sm-12" ng-if="state.isDemo" style="margin-top: 10px">
+              <span class="small text-muted">You cannot use this feature in the demo version of Portainer.</span>
+            </div>
+            <div class="col-sm-12 text-muted small" style="margin-top: 10px">
+              You can find more information about this in our
+              <a href="https://www.portainer.io/documentation/in-app-analytics-and-privacy-policy/" target="_blank">privacy policy</a>.
+            </div>
           </div>
+          <!-- templates -->
+          <div class="col-sm-12 form-section-title"> App Templates </div>
           <div>
             <div class="form-group">
               <span class="col-sm-12 text-muted small">
                 You can specify the URL to your own template definitions file here. See
-                <a href="https://documentation.portainer.io/v2.0/settings/apps/#build-and-host-your-own-templates" target="_blank">Portainer documentation</a> for more details.
+                <a href="https://docs.portainer.io/advanced/app-templates/build" target="_blank">Portainer documentation</a> for more details.
               </span>
             </div>
             <div class="form-group">
-              <label for="templates_url" class="col-sm-1 control-label text-left">
-                URL
-              </label>
-              <div class="col-sm-11">
+              <label for="templates_url" class="col-sm-2 control-label text-left"> URL </label>
+              <div class="col-sm-8">
                 <input
                   type="text"
                   class="form-control"
@@ -84,9 +87,7 @@
           </div>
           <!-- !templates -->
           <!-- helm charts -->
-          <div class="col-sm-12 form-section-title">
-            Helm Repository
-          </div>
+          <div class="col-sm-12 form-section-title"> Helm Repository </div>
           <div>
             <div class="form-group">
               <span class="col-sm-12 text-muted small">
@@ -95,59 +96,19 @@
               </span>
             </div>
             <div class="form-group">
-              <label for="helmrepository_url" class="col-sm-1 control-label text-left">
-                URL
-              </label>
-              <div class="col-sm-11">
-                <input type="text" class="form-control" ng-model="settings.HelmRepositoryURL" id="helmrepository_url" placeholder="https://charts.bitnami.com/bitnami" required />
+              <label for="helmrepository_url" class="col-sm-2 control-label text-left"> URL </label>
+              <div class="col-sm-8">
+                <input type="text" class="form-control" ng-model="settings.HelmRepositoryURL" id="helmrepository_url" placeholder="https://charts.bitnami.com/bitnami" />
               </div>
             </div>
           </div>
           <!-- !helm charts -->
           <!-- host-filesystem -->
-
-          <!-- edge -->
-          <div class="col-sm-12 form-section-title">
-            Edge Compute
-          </div>
-          <div class="form-group">
-            <label for="edge_checkin" class="col-sm-2 control-label text-left">
-              Edge agent default poll frequency
-              <portainer-tooltip
-                position="bottom"
-                message="Interval used by default by each Edge agent to check in with the Portainer instance. Affects Edge environment management and Edge compute features."
-              ></portainer-tooltip>
-            </label>
-            <div class="col-sm-10">
-              <select
-                id="edge_checkin"
-                class="form-control"
-                ng-model="settings.EdgeAgentCheckinInterval"
-                ng-options="+(opt.value) as opt.key for opt in state.availableEdgeAgentCheckinOptions"
-                data-cy="settings-pollFrequencySelect"
-              ></select>
-            </div>
-          </div>
-          <div class="form-group">
-            <div class="col-sm-12">
-              <label for="toggle_enableEdgeComputeFeatures" class="control-label text-left">
-                Enable edge compute features
-              </label>
-              <label class="switch" style="margin-left: 20px;" data-cy="settings-edgeToggle">
-                <input type="checkbox" name="toggle_enableEdgeComputeFeatures" ng-model="formValues.enableEdgeComputeFeatures" /><i></i>
-              </label>
-            </div>
-          </div>
-          <!-- !edge -->
           <!-- kube -->
-          <div class="col-sm-12 form-section-title">
-            Kubernetes
-          </div>
+          <div class="col-sm-12 form-section-title"> Kubernetes </div>
           <div class="form-group">
-            <label for="edge_checkin" class="col-sm-2 control-label text-left">
-              Kubeconfig expiry
-            </label>
-            <div class="col-sm-10">
+            <label for="kubeconfig_expiry" class="col-sm-2 control-label text-left"> Kubeconfig expiry </label>
+            <div class="col-sm-8">
               <select
                 id="kubeconfig_expiry"
                 class="form-control"
@@ -180,29 +141,27 @@
   </div>
 </div>
 
-<ssl-certificate-settings></ssl-certificate-settings>
+<ssl-certificate-settings ng-show="state.showHTTPS"></ssl-certificate-settings>
 
 <div class="row">
   <div class="col-sm-12">
     <rd-widget>
-      <rd-widget-header icon="fa-tags" title-text="Hidden containers"></rd-widget-header>
+      <rd-widget-header icon="box" feather-icon="true" title-text="Hidden containers"></rd-widget-header>
       <rd-widget-body>
         <form class="form-horizontal" ng-submit="addFilteredContainerLabel()" name="addTagForm">
           <div class="form-group">
-            <span class="col-sm-12 text-muted small">
-              You can hide containers with specific labels from Portainer UI. You need to specify the label name and value.
-            </span>
+            <span class="col-sm-12 text-muted small"> You can hide containers with specific labels from Portainer UI. You need to specify the label name and value. </span>
           </div>
           <div class="form-group">
             <label for="header_name" class="col-sm-1 control-label text-left">Name</label>
             <div class="col-sm-11 col-md-4">
               <input type="text" required class="form-control" id="header_name" name="label_name" ng-model="formValues.labelName" placeholder="e.g. com.example.foo" />
             </div>
-            <label for="header_value" class="col-sm-1 margin-sm-top control-label text-left">Value</label>
-            <div class="col-sm-11 col-md-4 margin-sm-top">
+            <label for="header_value" class="col-sm-1 control-label text-left">Value</label>
+            <div class="col-sm-11 col-md-4">
               <input type="text" class="form-control" id="header_value" ng-model="formValues.labelValue" placeholder="e.g. bar" />
             </div>
-            <div class="col-sm-12 col-md-2 margin-sm-top">
+            <div class="col-sm-12 col-md-2">
               <button type="submit" class="btn btn-primary btn-sm" ng-disabled="!formValues.labelName"><i class="fa fa-plus space-right" aria-hidden="true"></i>Add filter</button>
             </div>
           </div>
@@ -220,11 +179,11 @@
                   <tr ng-repeat="label in settings.BlackListedLabels">
                     <td>{{ label.name }}</td>
                     <td>{{ label.value }}</td>
-                    <td
-                      ><button type="button" class="btn btn-danger btn-xs" ng-click="removeFilteredContainerLabel($index)"
-                        ><i class="fa fa-trash-alt space-right" aria-hidden="true"></i>Remove</button
-                      ></td
-                    >
+                    <td>
+                      <button type="button" class="btn btn-danger btn-xs" ng-click="removeFilteredContainerLabel($index)">
+                        <i class="fa fa-trash-alt space-right" aria-hidden="true"></i>Remove</button
+                      >
+                    </td>
                   </tr>
                   <tr ng-if="settings.BlackListedLabels.length === 0">
                     <td colspan="3" class="text-center text-muted">No filter available.</td>
@@ -246,25 +205,23 @@
 <div class="row">
   <div class="col-sm-12">
     <rd-widget>
-      <rd-widget-header icon="fa-download" title-text="Backup Portainer"></rd-widget-header>
+      <rd-widget-header icon="download" feather-icon="true" title-text="Backup Portainer"></rd-widget-header>
       <rd-widget-body>
         <form class="form-horizontal" ng-submit="backupPortainer()" name="backupPortainerForm">
-          <div class="col-sm-12 form-section-title">
-            Backup configuration
-          </div>
-          <box-selector options="backupOptions" ng-model="formValues.backupFormType" on-change="(onBackupOptionsChange)"></box-selector>
+          <div class="col-sm-12 form-section-title"> Backup configuration </div>
+          <box-selector options="backupOptions" value="formValues.backupFormType" on-change="(onBackupOptionsChange)" radio-name="'backupOptions'"></box-selector>
           <div ng-if="formValues.backupFormType === BACKUP_FORM_TYPES.S3">
             <!-- Schedule automatic backups -->
-            <div class="form-group">
-              <div class="col-sm-12">
-                <por-switch-field
-                  label="Schedule automatic backups"
-                  name="s3-backup-setting"
-                  feature="s3BackupFeatureId"
-                  ng-model="formValues.scheduleAutomaticBackups"
-                  label-class="col-sm-2"
-                ></por-switch-field>
-              </div>
+            <div class="form-group mt-3">
+              <por-switch-field
+                label="'Schedule automatic backups'"
+                name="'s3-backup-setting'"
+                feature-id="s3BackupFeatureId"
+                checked="formValues.scheduleAutomaticBackups"
+                field-class="'col-sm-12'"
+                label-class="'col-sm-2'"
+                on-change="(onToggleAutoBackups)"
+              ></por-switch-field>
             </div>
             <!-- !Schedule automatic backups -->
             <!-- Cron rule  -->
@@ -360,30 +317,35 @@
               </div>
             </div>
             <!-- !Bucket name -->
-            <div class="col-sm-12 form-section-title">
-              Security settings
-            </div>
+            <div class="col-sm-12 form-section-title"> Security settings </div>
             <!-- Password protect S3 -->
             <div class="form-group">
-              <label for="password_protect" class="col-sm-1 control-label text-left">Password protect</label>
-              <div class="col-sm-1">
+              <label for="password_protect" class="col-sm-2 control-label text-left">Password protect</label>
+              <div class="col-sm-8">
                 <label class="switch">
-                  <input type="checkbox" id="password_protect_s3" name="password_protect_s3" ng-model="formValues.passwordProtectS3" disabled /><i></i>
+                  <input
+                    type="checkbox"
+                    id="password_protect_s3"
+                    name="password_protect_s3"
+                    ng-model="formValues.passwordProtectS3"
+                    data-cy="settings-passwordProtectToggleS3"
+                    disabled
+                  /><span class="slider round"></span>
                 </label>
               </div>
             </div>
             <!-- !Password protect S3 -->
             <!-- Password S3 -->
             <div class="form-group" ng-if="formValues.passwordProtectS3">
-              <label for="password" class="col-sm-1 control-label text-left">Password</label>
+              <label for="password" class="col-sm-2 control-label text-left">Password</label>
               <div class="col-sm-3">
-                <input type="password" class="form-control" ng-model="formValues.passwordS3" id="password_S3" name="password_S3" required />
+                <input type="password" class="form-control" ng-model="formValues.passwordS3" id="password_S3" name="password_S3" required data-cy="settings-backups3pw" />
               </div>
             </div>
             <div class="form-group col-md-12" ng-show="backupPortainerForm.password_S3.$invalid">
               <div class="small text-warning">
                 <div ng-messages="backupPortainerForm.password_S3.$error">
-                  <p ng-message="required"> <i class="fa fa-exclamation-triangle" aria-hidden="true"></i> This field is required.</p>
+                  <p ng-message="required"> <pr-icon icon="'alert-triangle'" feather="true"></pr-icon> This field is required.</p>
                 </div>
               </div>
             </div>
@@ -399,7 +361,7 @@
                   limited-feature-disabled
                   limited-feature-class="limited-be"
                 >
-                  <span><i class="fa fa-upload" aria-hidden="true"></i> Export backup</span>
+                  <span> <i class="fa fa-upload" aria-hidden="true"></i> Export backup</span>
                 </button>
               </div>
             </div>
@@ -421,29 +383,29 @@
             </div>
           </div>
           <div ng-if="formValues.backupFormType === BACKUP_FORM_TYPES.FILE">
-            <div class="col-sm-12 form-section-title">
-              Security settings
-            </div>
+            <div class="col-sm-12 form-section-title"> Security settings </div>
             <!-- Password protect -->
             <div class="form-group">
-              <label for="password_protect" class="col-sm-1 control-label text-left">Password protect</label>
-              <div class="col-sm-1">
-                <label class="switch"> <input type="checkbox" id="password_protect" name="password_protect" ng-model="formValues.passwordProtect" /><i></i> </label>
+              <label for="password_protect" class="col-sm-2 control-label text-left">Password protect</label>
+              <div class="col-sm-2">
+                <label class="switch" data-cy="settings-passwordProtectLocal">
+                  <input type="checkbox" id="password_protect" name="password_protect" ng-model="formValues.passwordProtect" /><span class="slider round"></span>
+                </label>
               </div>
             </div>
             <!-- !Password protect -->
 
             <!-- Password -->
             <div class="form-group" ng-if="formValues.passwordProtect">
-              <label for="password" class="col-sm-1 control-label text-left">Password</label>
+              <label for="password" class="col-sm-2 control-label text-left">Password</label>
               <div class="col-sm-3">
-                <input type="password" class="form-control" ng-model="formValues.password" id="password" name="password" required />
+                <input type="password" class="form-control" ng-model="formValues.password" id="password" name="password" required data-cy="settings-backupLocalPassword" />
               </div>
             </div>
             <div class="form-group col-md-12" ng-show="backupPortainerForm.password.$invalid">
               <div class="small text-warning">
                 <div ng-messages="backupPortainerForm.password.$error">
-                  <p ng-message="required"> <i class="fa fa-exclamation-triangle" aria-hidden="true"></i> This field is required.</p>
+                  <p ng-message="required"> <pr-icon icon="'alert-triangle'" feather="true"></pr-icon> This field is required.</p>
                 </div>
               </div>
             </div>
@@ -458,6 +420,7 @@
                   ng-click="downloadBackup()"
                   ng-disabled="backupPortainerForm.$invalid || state.backupInProgress || state.featureLimited"
                   button-spinner="state.backupInProgress"
+                  data-cy="settings-downloadLocalBackup"
                 >
                   <span ng-hide="state.backupInProgress">Download backup</span>
                   <span ng-show="state.backupInProgress">Downloading backup</span>

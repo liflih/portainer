@@ -9,12 +9,13 @@ import (
 	"github.com/portainer/libhttp/request"
 	"github.com/portainer/libhttp/response"
 	portainer "github.com/portainer/portainer/api"
-	bolterrors "github.com/portainer/portainer/api/bolt/errors"
 )
 
 type teamCreatePayload struct {
 	// Name
 	Name string `example:"developers" validate:"required"`
+	// TeamLeaders
+	TeamLeaders []portainer.UserID `example:"3,5"`
 }
 
 func (payload *teamCreatePayload) Validate(r *http.Request) error {
@@ -29,6 +30,7 @@ func (payload *teamCreatePayload) Validate(r *http.Request) error {
 // @description Create a new team.
 // @description **Access policy**: administrator
 // @tags teams
+// @security ApiKeyAuth
 // @security jwt
 // @accept json
 // @produce json
@@ -46,7 +48,7 @@ func (handler *Handler) teamCreate(w http.ResponseWriter, r *http.Request) *http
 	}
 
 	team, err := handler.DataStore.Team().TeamByName(payload.Name)
-	if err != nil && err != bolterrors.ErrObjectNotFound {
+	if err != nil && !handler.DataStore.IsErrObjectNotFound(err) {
 		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to retrieve teams from the database", err}
 	}
 	if team != nil {
@@ -57,9 +59,22 @@ func (handler *Handler) teamCreate(w http.ResponseWriter, r *http.Request) *http
 		Name: payload.Name,
 	}
 
-	err = handler.DataStore.Team().CreateTeam(team)
+	err = handler.DataStore.Team().Create(team)
 	if err != nil {
 		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to persist the team inside the database", err}
+	}
+
+	for _, teamLeader := range payload.TeamLeaders {
+		membership := &portainer.TeamMembership{
+			UserID: teamLeader,
+			TeamID: team.ID,
+			Role:   portainer.TeamLeader,
+		}
+
+		err = handler.DataStore.TeamMembership().Create(membership)
+		if err != nil {
+			return &httperror.HandlerError{http.StatusInternalServerError, "Unable to persist team leadership inside the database", err}
+		}
 	}
 
 	return response.JSON(w, team)

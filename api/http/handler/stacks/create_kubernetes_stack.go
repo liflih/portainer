@@ -54,9 +54,6 @@ func (payload *kubernetesStringDeploymentPayload) Validate(r *http.Request) erro
 	if govalidator.IsNull(payload.StackFileContent) {
 		return errors.New("Invalid stack file content")
 	}
-	if govalidator.IsNull(payload.Namespace) {
-		return errors.New("Invalid namespace")
-	}
 	if govalidator.IsNull(payload.StackName) {
 		return errors.New("Invalid stack name")
 	}
@@ -64,9 +61,6 @@ func (payload *kubernetesStringDeploymentPayload) Validate(r *http.Request) erro
 }
 
 func (payload *kubernetesGitDeploymentPayload) Validate(r *http.Request) error {
-	if govalidator.IsNull(payload.Namespace) {
-		return errors.New("Invalid namespace")
-	}
 	if govalidator.IsNull(payload.RepositoryURL) || !govalidator.IsURL(payload.RepositoryURL) {
 		return errors.New("Invalid repository URL. Must correspond to a valid URL format")
 	}
@@ -75,9 +69,6 @@ func (payload *kubernetesGitDeploymentPayload) Validate(r *http.Request) error {
 	}
 	if govalidator.IsNull(payload.ManifestFile) {
 		return errors.New("Invalid manifest file in repository")
-	}
-	if govalidator.IsNull(payload.RepositoryReferenceName) {
-		payload.RepositoryReferenceName = defaultGitReferenceName
 	}
 	if err := validateStackAutoUpdate(payload.AutoUpdate); err != nil {
 		return err
@@ -112,7 +103,7 @@ func (handler *Handler) createKubernetesStackFromFileContent(w http.ResponseWrit
 	if err != nil {
 		return &httperror.HandlerError{StatusCode: http.StatusInternalServerError, Message: "Unable to load user information from the database", Err: err}
 	}
-	isUnique, err := handler.checkUniqueStackName(endpoint, payload.StackName, 0)
+	isUnique, err := handler.checkUniqueStackNameInKubernetes(endpoint, payload.StackName, 0, payload.Namespace)
 	if err != nil {
 		return &httperror.HandlerError{StatusCode: http.StatusInternalServerError, Message: "Unable to check for name collision", Err: err}
 	}
@@ -160,7 +151,7 @@ func (handler *Handler) createKubernetesStackFromFileContent(w http.ResponseWrit
 		return &httperror.HandlerError{StatusCode: http.StatusInternalServerError, Message: "Unable to deploy Kubernetes stack", Err: err}
 	}
 
-	err = handler.DataStore.Stack().CreateStack(stack)
+	err = handler.DataStore.Stack().Create(stack)
 	if err != nil {
 		return &httperror.HandlerError{StatusCode: http.StatusInternalServerError, Message: "Unable to persist the Kubernetes stack inside the database", Err: err}
 	}
@@ -183,7 +174,7 @@ func (handler *Handler) createKubernetesStackFromGitRepository(w http.ResponseWr
 	if err != nil {
 		return &httperror.HandlerError{StatusCode: http.StatusInternalServerError, Message: "Unable to load user information from the database", Err: err}
 	}
-	isUnique, err := handler.checkUniqueStackName(endpoint, payload.StackName, 0)
+	isUnique, err := handler.checkUniqueStackNameInKubernetes(endpoint, payload.StackName, 0, payload.Namespace)
 	if err != nil {
 		return &httperror.HandlerError{StatusCode: http.StatusInternalServerError, Message: "Unable to check for name collision", Err: err}
 	}
@@ -274,7 +265,7 @@ func (handler *Handler) createKubernetesStackFromGitRepository(w http.ResponseWr
 		stack.AutoUpdate.JobID = jobID
 	}
 
-	err = handler.DataStore.Stack().CreateStack(stack)
+	err = handler.DataStore.Stack().Create(stack)
 	if err != nil {
 		return &httperror.HandlerError{StatusCode: http.StatusInternalServerError, Message: "Unable to persist the stack inside the database", Err: err}
 	}
@@ -297,7 +288,7 @@ func (handler *Handler) createKubernetesStackFromManifestURL(w http.ResponseWrit
 	if err != nil {
 		return &httperror.HandlerError{StatusCode: http.StatusInternalServerError, Message: "Unable to load user information from the database", Err: err}
 	}
-	isUnique, err := handler.checkUniqueStackName(endpoint, payload.StackName, 0)
+	isUnique, err := handler.checkUniqueStackNameInKubernetes(endpoint, payload.StackName, 0, payload.Namespace)
 	if err != nil {
 		return &httperror.HandlerError{StatusCode: http.StatusInternalServerError, Message: "Unable to check for name collision", Err: err}
 	}
@@ -345,7 +336,7 @@ func (handler *Handler) createKubernetesStackFromManifestURL(w http.ResponseWrit
 		return &httperror.HandlerError{StatusCode: http.StatusInternalServerError, Message: "Unable to deploy Kubernetes stack", Err: err}
 	}
 
-	err = handler.DataStore.Stack().CreateStack(stack)
+	err = handler.DataStore.Stack().Create(stack)
 	if err != nil {
 		return &httperror.HandlerError{StatusCode: http.StatusInternalServerError, Message: "Unable to persist the Kubernetes stack inside the database", Err: err}
 	}

@@ -1,7 +1,7 @@
 import angular from 'angular';
 
-import { buildOption } from '@/portainer/components/box-selector';
-import { S3_BACKUP_SETTING } from '@/portainer/feature-flags/feature-ids';
+import { FeatureId } from '@/portainer/feature-flags/enums';
+import { options } from './options';
 
 angular.module('portainer.app').controller('SettingsController', [
   '$scope',
@@ -13,28 +13,13 @@ angular.module('portainer.app').controller('SettingsController', [
   'FileSaver',
   'Blob',
   function ($scope, $state, Notifications, SettingsService, StateManager, BackupService, FileSaver) {
-    $scope.s3BackupFeatureId = S3_BACKUP_SETTING;
-    $scope.backupOptions = [
-      buildOption('backup_file', 'fa fa-download', 'Download backup file', '', 'file'),
-      buildOption('backup_s3', 'fa fa-upload', 'Store in S3', 'Define a cron schedule', 's3', S3_BACKUP_SETTING),
-    ];
+    $scope.s3BackupFeatureId = FeatureId.S3_BACKUP_SETTING;
+
+    $scope.backupOptions = options;
 
     $scope.state = {
+      isDemo: false,
       actionInProgress: false,
-      availableEdgeAgentCheckinOptions: [
-        {
-          key: '5 seconds',
-          value: 5,
-        },
-        {
-          key: '10 seconds',
-          value: 10,
-        },
-        {
-          key: '30 seconds',
-          value: 30,
-        },
-      ],
       availableKubeconfigExpiryOptions: [
         {
           key: '1 day',
@@ -59,6 +44,7 @@ angular.module('portainer.app').controller('SettingsController', [
       ],
       backupInProgress: false,
       featureLimited: false,
+      showHTTPS: !window.ddExtension,
     };
 
     $scope.BACKUP_FORM_TYPES = { S3: 's3', FILE: 'file' };
@@ -67,11 +53,28 @@ angular.module('portainer.app').controller('SettingsController', [
       customLogo: false,
       labelName: '',
       labelValue: '',
-      enableEdgeComputeFeatures: false,
       enableTelemetry: false,
       passwordProtect: false,
       password: '',
       backupFormType: $scope.BACKUP_FORM_TYPES.FILE,
+    };
+
+    $scope.onToggleEnableTelemetry = function onToggleEnableTelemetry(checked) {
+      $scope.$evalAsync(() => {
+        $scope.formValues.enableTelemetry = checked;
+      });
+    };
+
+    $scope.onToggleCustomLogo = function onToggleCustomLogo(checked) {
+      $scope.$evalAsync(() => {
+        $scope.formValues.customLogo = checked;
+      });
+    };
+
+    $scope.onToggleAutoBackups = function onToggleAutoBackups(checked) {
+      $scope.$evalAsync(() => {
+        $scope.formValues.scheduleAutomaticBackups = checked;
+      });
     };
 
     $scope.onBackupOptionsChange = function (type, limited) {
@@ -126,7 +129,6 @@ angular.module('portainer.app').controller('SettingsController', [
         settings.LogoURL = '';
       }
 
-      settings.EnableEdgeComputeFeatures = $scope.formValues.enableEdgeComputeFeatures;
       settings.EnableTelemetry = $scope.formValues.enableTelemetry;
 
       $scope.state.actionInProgress = true;
@@ -139,7 +141,6 @@ angular.module('portainer.app').controller('SettingsController', [
           Notifications.success('Settings updated');
           StateManager.updateLogo(settings.LogoURL);
           StateManager.updateSnapshotInterval(settings.SnapshotInterval);
-          StateManager.updateEnableEdgeComputeFeatures(settings.EnableEdgeComputeFeatures);
           StateManager.updateEnableTelemetry(settings.EnableTelemetry);
           $state.reload();
         })
@@ -152,6 +153,9 @@ angular.module('portainer.app').controller('SettingsController', [
     }
 
     function initView() {
+      const state = StateManager.getState();
+      $scope.state.isDemo = state.application.demoEnvironment.enabled;
+
       SettingsService.settings()
         .then(function success(data) {
           var settings = data;
@@ -160,7 +164,6 @@ angular.module('portainer.app').controller('SettingsController', [
           if (settings.LogoURL !== '') {
             $scope.formValues.customLogo = true;
           }
-          $scope.formValues.enableEdgeComputeFeatures = settings.EnableEdgeComputeFeatures;
           $scope.formValues.enableTelemetry = settings.EnableTelemetry;
         })
         .catch(function error(err) {

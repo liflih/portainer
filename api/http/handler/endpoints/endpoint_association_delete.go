@@ -12,18 +12,18 @@ import (
 	"github.com/portainer/libhttp/request"
 	"github.com/portainer/libhttp/response"
 	portainer "github.com/portainer/portainer/api"
-	bolterrors "github.com/portainer/portainer/api/bolt/errors"
 )
 
 // @id EndpointAssociationDelete
 // @summary De-association an edge environment(endpoint)
 // @description De-association an edge environment(endpoint).
 // @description **Access policy**: administrator
+// @security ApiKeyAuth
 // @security jwt
 // @tags endpoints
 // @produce json
 // @param id path int true "Environment(Endpoint) identifier"
-// @success 200 {object} portainer.Endpoint "Success"
+// @success 204 "Success"
 // @failure 400 "Invalid request"
 // @failure 404 "Environment(Endpoint) not found"
 // @failure 500 "Server error"
@@ -35,7 +35,7 @@ func (handler *Handler) endpointAssociationDelete(w http.ResponseWriter, r *http
 	}
 
 	endpoint, err := handler.DataStore.Endpoint().Endpoint(portainer.EndpointID(endpointID))
-	if err == bolterrors.ErrObjectNotFound {
+	if handler.DataStore.IsErrObjectNotFound(err) {
 		return &httperror.HandlerError{http.StatusNotFound, "Unable to find an environment with the specified identifier inside the database", err}
 	} else if err != nil {
 		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to find an environment with the specified identifier inside the database", err}
@@ -61,7 +61,7 @@ func (handler *Handler) endpointAssociationDelete(w http.ResponseWriter, r *http
 
 	handler.ReverseTunnelService.SetTunnelStatusToIdle(endpoint.ID)
 
-	return response.JSON(w, endpoint)
+	return response.Empty(w)
 }
 
 func (handler *Handler) updateEdgeKey(edgeKey string) (string, error) {

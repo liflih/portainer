@@ -10,7 +10,8 @@ func configureLogger() {
 	logger := logrus.New() // logger is to implicitly substitute stdlib's log
 	log.SetOutput(logger.Writer())
 
-	formatter := &logrus.TextFormatter{DisableTimestamp: true, DisableLevelTruncation: true}
+	formatter := &logrus.TextFormatter{DisableTimestamp: false, DisableLevelTruncation: true}
+
 	logger.SetFormatter(formatter)
 	logrus.SetFormatter(formatter)
 

@@ -16,6 +16,9 @@ module.exports = {
             exportLocalsConvention: 'camelCaseOnly',
           },
         },
+        postcssLoaderOptions: {
+          implementation: require('postcss'),
+        },
       },
     },
   ],
@@ -28,4 +31,8 @@ module.exports = {
     ];
     return config;
   },
+  core: {
+    builder: 'webpack5',
+  },
+  staticDirs: ['./public'],
 };

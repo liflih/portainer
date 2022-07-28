@@ -7,14 +7,15 @@ import (
 	"time"
 
 	portainer "github.com/portainer/portainer/api"
+	"github.com/portainer/portainer/api/dataservices"
 )
 
 // Service repesents a service to manage environment(endpoint) snapshots.
 // It provides an interface to start background snapshots as well as
 // specific Docker/Kubernetes environment(endpoint) snapshot methods.
 type Service struct {
-	dataStore                 portainer.DataStore
-	refreshSignal             chan struct{}
+	dataStore                 dataservices.DataStore
+	snapshotIntervalCh        chan time.Duration
 	snapshotIntervalInSeconds float64
 	dockerSnapshotter         portainer.DockerSnapshotter
 	kubernetesSnapshotter     portainer.KubernetesSnapshotter
@@ -22,52 +23,53 @@ type Service struct {
 }
 
 // NewService creates a new instance of a service
-func NewService(snapshotInterval string, dataStore portainer.DataStore, dockerSnapshotter portainer.DockerSnapshotter, kubernetesSnapshotter portainer.KubernetesSnapshotter, shutdownCtx context.Context) (*Service, error) {
-	snapshotFrequency, err := time.ParseDuration(snapshotInterval)
+func NewService(snapshotIntervalFromFlag string, dataStore dataservices.DataStore, dockerSnapshotter portainer.DockerSnapshotter, kubernetesSnapshotter portainer.KubernetesSnapshotter, shutdownCtx context.Context) (*Service, error) {
+	interval, err := parseSnapshotFrequency(snapshotIntervalFromFlag, dataStore)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Service{
 		dataStore:                 dataStore,
-		snapshotIntervalInSeconds: snapshotFrequency.Seconds(),
+		snapshotIntervalCh:        make(chan time.Duration),
+		snapshotIntervalInSeconds: interval,
 		dockerSnapshotter:         dockerSnapshotter,
 		kubernetesSnapshotter:     kubernetesSnapshotter,
 		shutdownCtx:               shutdownCtx,
 	}, nil
 }
 
-// Start will start a background routine to execute periodic snapshots of environments(endpoints)
-func (service *Service) Start() {
-	if service.refreshSignal != nil {
-		return
+func parseSnapshotFrequency(snapshotInterval string, dataStore dataservices.DataStore) (float64, error) {
+	if snapshotInterval == "" {
+		settings, err := dataStore.Settings().Settings()
+		if err != nil {
+			return 0, err
+		}
+		snapshotInterval = settings.SnapshotInterval
+		if snapshotInterval == "" {
+			snapshotInterval = portainer.DefaultSnapshotInterval
+		}
 	}
-
-	service.refreshSignal = make(chan struct{})
-	service.startSnapshotLoop()
+	snapshotFrequency, err := time.ParseDuration(snapshotInterval)
+	if err != nil {
+		return 0, err
+	}
+	return snapshotFrequency.Seconds(), nil
 }
 
-func (service *Service) Stop() {
-	if service.refreshSignal == nil {
-		return
-	}
-
-	// clear refreshSignal to mark the service as disabled
-	close(service.refreshSignal)
-	service.refreshSignal = nil
+// Start will start a background routine to execute periodic snapshots of environments(endpoints)
+func (service *Service) Start() {
+	go service.startSnapshotLoop()
 }
 
 // SetSnapshotInterval sets the snapshot interval and resets the service
 func (service *Service) SetSnapshotInterval(snapshotInterval string) error {
-	service.Stop()
-
-	snapshotFrequency, err := time.ParseDuration(snapshotInterval)
+	interval, err := time.ParseDuration(snapshotInterval)
 	if err != nil {
 		return err
 	}
-	service.snapshotIntervalInSeconds = snapshotFrequency.Seconds()
 
-	service.Start()
+	service.snapshotIntervalCh <- interval
 
 	return nil
 }
@@ -121,34 +123,29 @@ func (service *Service) snapshotDockerEndpoint(endpoint *portainer.Endpoint) err
 	return nil
 }
 
-func (service *Service) startSnapshotLoop() error {
+func (service *Service) startSnapshotLoop() {
 	ticker := time.NewTicker(time.Duration(service.snapshotIntervalInSeconds) * time.Second)
-	go func() {
-		err := service.snapshotEndpoints()
-		if err != nil {
-			log.Printf("[ERROR] [internal,snapshot] [message: background schedule error (environment snapshot).] [error: %s]", err)
-		}
 
-		for {
-			select {
-			case <-ticker.C:
-				err := service.snapshotEndpoints()
-				if err != nil {
-					log.Printf("[ERROR] [internal,snapshot] [message: background schedule error (environment snapshot).] [error: %s]", err)
-				}
-			case <-service.shutdownCtx.Done():
-				log.Println("[DEBUG] [internal,snapshot] [message: shutting down snapshotting]")
-				ticker.Stop()
-				return
-			case <-service.refreshSignal:
-				log.Println("[DEBUG] [internal,snapshot] [message: shutting down snapshotting]")
-				ticker.Stop()
-				return
+	err := service.snapshotEndpoints()
+	if err != nil {
+		log.Printf("[ERROR] [internal,snapshot] [message: background schedule error (environment snapshot).] [error: %s]", err)
+	}
+
+	for {
+		select {
+		case <-ticker.C:
+			err := service.snapshotEndpoints()
+			if err != nil {
+				log.Printf("[ERROR] [internal,snapshot] [message: background schedule error (environment snapshot).] [error: %s]", err)
 			}
+		case <-service.shutdownCtx.Done():
+			log.Println("[DEBUG] [internal,snapshot] [message: shutting down snapshotting]")
+			ticker.Stop()
+			return
+		case interval := <-service.snapshotIntervalCh:
+			ticker.Reset(interval)
 		}
-	}()
-
-	return nil
+	}
 }
 
 func (service *Service) snapshotEndpoints() error {
@@ -191,24 +188,17 @@ func (service *Service) snapshotEndpoints() error {
 
 // FetchDockerID fetches info.Swarm.Cluster.ID if environment(endpoint) is swarm and info.ID otherwise
 func FetchDockerID(snapshot portainer.DockerSnapshot) (string, error) {
-	info, done := snapshot.SnapshotRaw.Info.(map[string]interface{})
-	if !done {
-		return "", errors.New("failed getting snapshot info")
-	}
+	info := snapshot.SnapshotRaw.Info
 
 	if !snapshot.Swarm {
-		return info["ID"].(string), nil
+		return info.ID, nil
 	}
 
-	if info["Swarm"] == nil {
-		return "", errors.New("swarm environment is missing swarm info snapshot")
-	}
-
-	swarmInfo := info["Swarm"].(map[string]interface{})
-	if swarmInfo["Cluster"] == nil {
+	swarmInfo := info.Swarm
+	if swarmInfo.Cluster == nil {
 		return "", errors.New("swarm environment is missing cluster info snapshot")
 	}
 
-	clusterInfo := swarmInfo["Cluster"].(map[string]interface{})
-	return clusterInfo["ID"].(string), nil
+	clusterInfo := swarmInfo.Cluster
+	return clusterInfo.ID, nil
 }

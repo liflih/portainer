@@ -3,6 +3,7 @@ angular.module('portainer.app').controller('EndpointsDatatableController', [
   '$controller',
   'DatatableService',
   'PaginationService',
+  'Notifications',
   function ($scope, $controller, DatatableService, PaginationService) {
     angular.extend(this, $controller('GenericDatatableController', { $scope: $scope }));
 
@@ -31,6 +32,10 @@ angular.module('portainer.app').controller('EndpointsDatatableController', [
     this.onPageChange = function (newPageNumber) {
       this.state.pageNumber = newPageNumber;
       this.paginationChanged();
+    };
+
+    this.setReferrer = function () {
+      window.localStorage.setItem('wizardReferrer', 'environments');
     };
 
     /**

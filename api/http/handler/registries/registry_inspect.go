@@ -4,11 +4,11 @@ import (
 	"net/http"
 
 	portainer "github.com/portainer/portainer/api"
-	bolterrors "github.com/portainer/portainer/api/bolt/errors"
 
 	httperror "github.com/portainer/libhttp/error"
 	"github.com/portainer/libhttp/request"
 	"github.com/portainer/libhttp/response"
+	httperrors "github.com/portainer/portainer/api/http/errors"
 )
 
 // @id RegistryInspect
@@ -16,6 +16,7 @@ import (
 // @description Retrieve details about a registry.
 // @description **Access policy**: restricted
 // @tags registries
+// @security ApiKeyAuth
 // @security jwt
 // @produce json
 // @param id path int true "Registry identifier"
@@ -26,6 +27,13 @@ import (
 // @failure 500 "Server error"
 // @router /registries/{id} [get]
 func (handler *Handler) registryInspect(w http.ResponseWriter, r *http.Request) *httperror.HandlerError {
+	hasAccess, isAdmin, err := handler.userHasRegistryAccess(r)
+	if err != nil {
+		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to retrieve info from request context", err}
+	}
+	if !hasAccess {
+		return &httperror.HandlerError{http.StatusForbidden, "Access denied to resource", httperrors.ErrResourceAccessDenied}
+	}
 
 	registryID, err := request.RetrieveNumericRouteVariableValue(r, "id")
 	if err != nil {
@@ -33,12 +41,12 @@ func (handler *Handler) registryInspect(w http.ResponseWriter, r *http.Request) 
 	}
 
 	registry, err := handler.DataStore.Registry().Registry(portainer.RegistryID(registryID))
-	if err == bolterrors.ErrObjectNotFound {
+	if handler.DataStore.IsErrObjectNotFound(err) {
 		return &httperror.HandlerError{http.StatusNotFound, "Unable to find a registry with the specified identifier inside the database", err}
 	} else if err != nil {
 		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to find a registry with the specified identifier inside the database", err}
 	}
 
-	hideFields(registry, false)
+	hideFields(registry, !isAdmin)
 	return response.JSON(w, registry)
 }

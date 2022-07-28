@@ -5,8 +5,6 @@ import (
 	"net/http"
 	"strconv"
 
-	bolterrors "github.com/portainer/portainer/api/bolt/errors"
-
 	"github.com/asaskevich/govalidator"
 	httperror "github.com/portainer/libhttp/error"
 	"github.com/portainer/libhttp/request"
@@ -33,6 +31,8 @@ type customTemplateUpdatePayload struct {
 	Type portainer.StackType `example:"1" enums:"1,2,3" validate:"required"`
 	// Content of stack file
 	FileContent string `validate:"required"`
+	// Definitions of variables in the stack file
+	Variables []portainer.CustomTemplateVariableDefinition
 }
 
 func (payload *customTemplateUpdatePayload) Validate(r *http.Request) error {
@@ -54,6 +54,12 @@ func (payload *customTemplateUpdatePayload) Validate(r *http.Request) error {
 	if !isValidNote(payload.Note) {
 		return errors.New("Invalid note. <img> tag is not supported")
 	}
+
+	err := validateVariablesDefinitions(payload.Variables)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -62,6 +68,7 @@ func (payload *customTemplateUpdatePayload) Validate(r *http.Request) error {
 // @description Update a template.
 // @description **Access policy**: authenticated
 // @tags custom_templates
+// @security ApiKeyAuth
 // @security jwt
 // @accept json
 // @produce json
@@ -97,7 +104,7 @@ func (handler *Handler) customTemplateUpdate(w http.ResponseWriter, r *http.Requ
 	}
 
 	customTemplate, err := handler.DataStore.CustomTemplate().CustomTemplate(portainer.CustomTemplateID(customTemplateID))
-	if err == bolterrors.ErrObjectNotFound {
+	if handler.DataStore.IsErrObjectNotFound(err) {
 		return &httperror.HandlerError{http.StatusNotFound, "Unable to find a custom template with the specified identifier inside the database", err}
 	} else if err != nil {
 		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to find a custom template with the specified identifier inside the database", err}
@@ -125,6 +132,7 @@ func (handler *Handler) customTemplateUpdate(w http.ResponseWriter, r *http.Requ
 	customTemplate.Note = payload.Note
 	customTemplate.Platform = payload.Platform
 	customTemplate.Type = payload.Type
+	customTemplate.Variables = payload.Variables
 
 	err = handler.DataStore.CustomTemplate().UpdateCustomTemplate(customTemplate.ID, customTemplate)
 	if err != nil {

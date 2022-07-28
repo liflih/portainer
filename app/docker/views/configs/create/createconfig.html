@@ -1,7 +1,4 @@
-<rd-header>
-  <rd-header-title title-text="Create config"></rd-header-title>
-  <rd-header-content> <a ui-sref="docker.configs">Configs</a> &gt; Add config </rd-header-content>
-</rd-header>
+<page-header title="'Create config'" breadcrumbs="[{label:'Configs', link:'docker.configs'}, 'Add config']"> </page-header>
 
 <div class="row">
   <div class="col-lg-12 col-md-12 col-xs-12">
@@ -31,15 +28,15 @@
           <!-- !config-data -->
           <!-- labels -->
           <div class="form-group">
-            <div class="col-sm-12" style="margin-top: 5px;">
+            <div class="col-sm-12" style="margin-top: 5px">
               <label class="control-label text-left">Labels</label>
-              <span class="label label-default interactive" style="margin-left: 10px;" ng-click="ctrl.addLabel()">
-                <i class="fa fa-plus-circle" aria-hidden="true"></i> add label
+              <span class="label label-default interactive" style="margin-left: 10px" ng-click="ctrl.addLabel()">
+                <pr-icon icon="'plus'" mode="'alt'" feather="true"></pr-icon> add label
               </span>
             </div>
             <!-- labels-input-list -->
-            <div class="col-sm-12 form-inline" style="margin-top: 10px;">
-              <div ng-repeat="label in ctrl.formValues.Labels" style="margin-top: 2px;">
+            <div class="col-sm-12 form-inline" style="margin-top: 10px">
+              <div ng-repeat="label in ctrl.formValues.Labels" style="margin-top: 2px">
                 <div class="input-group col-sm-5 input-group-sm">
                   <span class="input-group-addon">name</span>
                   <input type="text" class="form-control" ng-model="label.name" placeholder="e.g. com.example.foo" />
@@ -48,8 +45,8 @@
                   <span class="input-group-addon">value</span>
                   <input type="text" class="form-control" ng-model="label.value" placeholder="e.g. bar" />
                 </div>
-                <button class="btn btn-sm btn-danger" type="button" ng-click="ctrl.removeLabel($index)">
-                  <i class="fa fa-trash" aria-hidden="true"></i>
+                <button class="btn btn-light" type="button" ng-click="ctrl.removeLabel($index)">
+                  <pr-icon icon="'trash'" feather="true" class-name="'icon-secondary icon-md'"></pr-icon>
                 </button>
               </div>
             </div>
@@ -60,13 +57,11 @@
           <por-access-control-form form-data="ctrl.formValues.AccessControlData"></por-access-control-form>
           <!-- !access-control -->
           <!-- actions -->
-          <div class="col-sm-12 form-section-title">
-            Actions
-          </div>
+          <div class="col-sm-12 form-section-title"> Actions </div>
           <div class="form-group">
             <div class="col-sm-12">
               <button type="button" class="btn btn-primary btn-sm" ng-disabled="!ctrl.formValues.Name" ng-click="ctrl.create()">Create config</button>
-              <span class="text-danger" ng-if="ctrl.state.formValidationError" style="margin-left: 5px;">{{ ctrl.state.formValidationError }}</span>
+              <span class="text-danger" ng-if="ctrl.state.formValidationError" style="margin-left: 5px">{{ ctrl.state.formValidationError }}</span>
             </div>
           </div>
           <!-- !actions -->

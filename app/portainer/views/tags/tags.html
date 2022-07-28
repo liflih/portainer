@@ -1,11 +1,4 @@
-<rd-header>
-  <rd-header-title title-text="Tags">
-    <a data-toggle="tooltip" title="Refresh" ui-sref="portainer.tags" ui-sref-opts="{reload: true}">
-      <i class="fa fa-sync" aria-hidden="true"></i>
-    </a>
-  </rd-header-title>
-  <rd-header-content>Tag management</rd-header-content>
-</rd-header>
+<page-header title="'Tags'" breadcrumbs="['Tag management']" reload="true"> </page-header>
 
 <div class="row">
   <div class="col-sm-12">
@@ -15,9 +8,7 @@
         <form class="form-horizontal" name="tagCreationForm" ng-submit="createTag()">
           <!-- name-input -->
           <div class="form-group">
-            <label for="name" class="col-sm-2 control-label text-left">
-              Name
-            </label>
+            <label for="name" class="col-sm-2 control-label text-left"> Name </label>
             <div class="col-sm-10">
               <input
                 type="text"

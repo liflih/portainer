@@ -63,7 +63,7 @@ angular.module('portainer.docker').controller('CreateVolumeController', [
       driverOptions.push({ name: 'device', value: device });
 
       const versionNumber = data.versionsNumber[data.versions.indexOf(data.version)];
-      const options = 'username=' + data.username + ',password=' + data.password + ',vers=' + versionNumber;
+      const options = 'addr=' + data.serverAddress + ',username=' + data.username + ',password=' + data.password + ',vers=' + versionNumber;
       driverOptions.push({ name: 'o', value: options });
     }
 
@@ -86,11 +86,6 @@ angular.module('portainer.docker').controller('CreateVolumeController', [
       var name = $scope.formValues.Name;
       var driver = $scope.formValues.Driver;
       var driverOptions = $scope.formValues.DriverOptions;
-      var storidgeProfile = $scope.formValues.StoridgeProfile;
-
-      if (driver === 'cio:latest' && storidgeProfile) {
-        driverOptions.push({ name: 'profile', value: storidgeProfile.Name });
-      }
 
       if ($scope.formValues.NFSData.useNFS) {
         prepareNFSConfiguration(driverOptions);

@@ -9,12 +9,11 @@ require('./includes/agent.html');
 
 class InitEndpointController {
   /* @ngInject */
-  constructor($async, $scope, $state, EndpointService, EndpointProvider, StateManager, Notifications) {
+  constructor($async, $scope, $state, EndpointService, StateManager, Notifications) {
     this.$async = $async;
     this.$scope = $scope;
     this.$state = $state;
     this.EndpointService = EndpointService;
-    this.EndpointProvider = EndpointProvider;
     this.StateManager = StateManager;
     this.Notifications = Notifications;
 
@@ -95,7 +94,7 @@ class InitEndpointController {
     try {
       this.state.actionInProgress = true;
       const endpoint = await this.EndpointService.createLocalKubernetesEndpoint();
-      this.$state.go('portainer.k8sendpoint.kubernetesConfig', { id: endpoint.Id });
+      this.$state.go('kubernetes.cluster.setup', { endpointId: endpoint.Id });
     } catch (err) {
       this.Notifications.error('Failure', err, 'Unable to connect to the Kubernetes environment');
     } finally {
@@ -131,8 +130,8 @@ class InitEndpointController {
         null,
         null
       );
-      const routeName = endpoint.Type === PortainerEndpointTypes.AgentOnKubernetesEnvironment ? 'portainer.k8sendpoint.kubernetesConfig' : 'portainer.home';
-      this.$state.go(routeName, { id: endpoint.Id });
+      const routeName = endpoint.Type === PortainerEndpointTypes.AgentOnKubernetesEnvironment ? 'kubernetes.cluster.setup' : 'portainer.home';
+      this.$state.go(routeName, { endpointId: endpoint.Id });
     } catch (err) {
       this.Notifications.error('Failure', err, 'Unable to connect to the Docker environment');
     } finally {

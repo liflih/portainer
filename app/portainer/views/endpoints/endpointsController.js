@@ -1,11 +1,20 @@
 import angular from 'angular';
-import EndpointHelper from 'Portainer/helpers/endpointHelper';
+import EndpointHelper from '@/portainer/helpers/endpointHelper';
+import { getEnvironments } from '@/portainer/environments/environment.service';
 
 angular.module('portainer.app').controller('EndpointsController', EndpointsController);
 
-function EndpointsController($q, $scope, $state, $async, EndpointService, GroupService, ModalService, Notifications) {
-  $scope.removeAction = removeAction;
+function EndpointsController($q, $scope, $state, $async, EndpointService, GroupService, ModalService, Notifications, EndpointProvider, StateManager) {
+  $scope.state = {
+    loadingMessage: '',
+  };
 
+  $scope.setLoadingMessage = setLoadingMessage;
+  function setLoadingMessage(message) {
+    $scope.state.loadingMessage = message;
+  }
+
+  $scope.removeAction = removeAction;
   function removeAction(endpoints) {
     ModalService.confirmDeletion('This action will remove all configurations associated to your environment(s). Continue?', (confirmed) => {
       if (!confirmed) {
@@ -26,14 +35,22 @@ function EndpointsController($q, $scope, $state, $async, EndpointService, GroupS
       }
     }
 
+    const endpointId = EndpointProvider.endpointID();
+    // If the current endpoint was deleted, then clean endpoint store
+    if (endpoints.some((item) => item.Id === endpointId)) {
+      StateManager.cleanEndpoint();
+      // trigger sidebar rerender
+      $scope.applicationState.endpoint = {};
+    }
+
     $state.reload();
   }
 
   $scope.getPaginatedEndpoints = getPaginatedEndpoints;
-  function getPaginatedEndpoints(lastId, limit, search) {
+  function getPaginatedEndpoints(start, limit, search) {
     const deferred = $q.defer();
     $q.all({
-      endpoints: EndpointService.endpoints(lastId, limit, { search }),
+      endpoints: getEnvironments({ start, limit, query: { search } }),
       groups: GroupService.groups(),
     })
       .then(function success(data) {

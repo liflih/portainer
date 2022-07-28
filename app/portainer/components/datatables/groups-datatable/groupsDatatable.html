@@ -2,7 +2,7 @@
   <rd-widget>
     <rd-widget-body classes="no-padding">
       <div class="toolBar">
-        <div class="toolBarTitle"> <i class="fa" ng-class="$ctrl.titleIcon" aria-hidden="true" style="margin-right: 2px;"></i> {{ $ctrl.titleText }} </div>
+        <div class="toolBarTitle"> <i class="fa" ng-class="$ctrl.titleIcon" aria-hidden="true" style="margin-right: 2px"></i> {{ $ctrl.titleText }} </div>
       </div>
       <div class="actionBar">
         <button
@@ -62,7 +62,7 @@
                 <a ui-sref="portainer.groups.group({id: item.Id})">{{ item.Name }}</a>
               </td>
               <td>
-                <a ui-sref="portainer.groups.group.access({id: item.Id})"> <i class="fa fa-users" aria-hidden="true"></i> Manage access </a>
+                <a ui-sref="portainer.groups.group.access({id: item.Id})"> <pr-icon icon="'users'" feather="true"></pr-icon> Manage access </a>
               </td>
             </tr>
             <tr ng-if="!$ctrl.dataset">
@@ -79,9 +79,7 @@
         <div class="paginationControls">
           <form class="form-inline">
             <span class="limitSelector">
-              <span style="margin-right: 5px;">
-                Items per page
-              </span>
+              <span style="margin-right: 5px"> Items per page </span>
               <select class="form-control" ng-model="$ctrl.state.paginatedItemLimit" ng-change="$ctrl.changePaginationLimit()" data-cy="component-paginationSelect">
                 <option value="0">All</option>
                 <option value="10">10</option>

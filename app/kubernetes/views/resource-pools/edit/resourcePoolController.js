@@ -9,6 +9,9 @@ import {
   KubernetesResourcePoolFormValues,
   KubernetesResourcePoolIngressClassAnnotationFormValue,
   KubernetesResourcePoolIngressClassHostFormValue,
+  KubernetesResourcePoolNginxRewriteAnnotationFormValue,
+  KubernetesResourcePoolNginxUseregexAnnotationFormValue,
+  KubernetesResourcePoolTraefikRewriteAnnotationFormValue,
 } from 'Kubernetes/models/resource-pool/formValues';
 import { KubernetesIngressConverter } from 'Kubernetes/ingress/converter';
 import { KubernetesFormValidationReferences } from 'Kubernetes/models/application/formValues';
@@ -16,7 +19,7 @@ import KubernetesFormValidationHelper from 'Kubernetes/helpers/formValidationHel
 import { KubernetesIngressClassTypes } from 'Kubernetes/ingress/constants';
 import KubernetesResourceQuotaConverter from 'Kubernetes/converters/resourceQuota';
 import KubernetesNamespaceHelper from 'Kubernetes/helpers/namespaceHelper';
-import { K8S_RESOURCE_POOL_LB_QUOTA, K8S_RESOURCE_POOL_STORAGE_QUOTA } from '@/portainer/feature-flags/feature-ids';
+import { FeatureId } from '@/portainer/feature-flags/enums';
 
 class KubernetesResourcePoolController {
   /* #region  CONSTRUCTOR */
@@ -24,6 +27,7 @@ class KubernetesResourcePoolController {
   constructor(
     $async,
     $state,
+    $scope,
     Authentication,
     Notifications,
     LocalStorage,
@@ -42,6 +46,7 @@ class KubernetesResourcePoolController {
     Object.assign(this, {
       $async,
       $state,
+      $scope,
       Authentication,
       Notifications,
       LocalStorage,
@@ -61,11 +66,13 @@ class KubernetesResourcePoolController {
     this.IngressClassTypes = KubernetesIngressClassTypes;
     this.ResourceQuotaDefaults = KubernetesResourceQuotaDefaults;
 
-    this.LBQuotaFeatureId = K8S_RESOURCE_POOL_LB_QUOTA;
-    this.StorageQuotaFeatureId = K8S_RESOURCE_POOL_STORAGE_QUOTA;
+    this.LBQuotaFeatureId = FeatureId.K8S_RESOURCE_POOL_LB_QUOTA;
+    this.StorageQuotaFeatureId = FeatureId.K8S_RESOURCE_POOL_STORAGE_QUOTA;
 
     this.updateResourcePoolAsync = this.updateResourcePoolAsync.bind(this);
     this.getEvents = this.getEvents.bind(this);
+    this.onToggleLoadBalancersQuota = this.onToggleLoadBalancersQuota.bind(this);
+    this.onToggleStorageQuota = this.onToggleStorageQuota.bind(this);
   }
   /* #endregion */
 
@@ -74,11 +81,37 @@ class KubernetesResourcePoolController {
     ingressClass.Annotations.push(new KubernetesResourcePoolIngressClassAnnotationFormValue());
   }
 
+  addRewriteAnnotation(ingressClass) {
+    if (ingressClass.IngressClass.Type === this.IngressClassTypes.NGINX) {
+      ingressClass.Annotations.push(new KubernetesResourcePoolNginxRewriteAnnotationFormValue());
+    }
+
+    if (ingressClass.IngressClass.Type === this.IngressClassTypes.TRAEFIK) {
+      ingressClass.Annotations.push(new KubernetesResourcePoolTraefikRewriteAnnotationFormValue());
+    }
+  }
+
+  addUseregexAnnotation(ingressClass) {
+    ingressClass.Annotations.push(new KubernetesResourcePoolNginxUseregexAnnotationFormValue());
+  }
+
   removeAnnotation(ingressClass, index) {
     ingressClass.Annotations.splice(index, 1);
     this.onChangeIngressHostname();
   }
   /* #endregion */
+
+  onToggleLoadBalancersQuota(checked) {
+    return this.$scope.$evalAsync(() => {
+      this.formValues.UseLoadBalancersQuota = checked;
+    });
+  }
+
+  onToggleStorageQuota(storageClassName, enabled) {
+    this.$scope.$evalAsync(() => {
+      this.formValues.StorageClasses = this.formValues.StorageClasses.map((sClass) => (sClass.Name !== storageClassName ? sClass : { ...sClass, Selected: enabled }));
+    });
+  }
 
   /* #region  INGRESS MANAGEMENT */
   onChangeIngressHostname() {

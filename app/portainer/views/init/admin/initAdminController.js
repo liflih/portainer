@@ -1,3 +1,5 @@
+import { getEnvironments } from '@/portainer/environments/environment.service';
+
 angular.module('portainer.app').controller('InitAdminController', [
   '$scope',
   '$state',
@@ -6,10 +8,9 @@ angular.module('portainer.app').controller('InitAdminController', [
   'StateManager',
   'SettingsService',
   'UserService',
-  'EndpointService',
   'BackupService',
   'StatusService',
-  function ($scope, $state, Notifications, Authentication, StateManager, SettingsService, UserService, EndpointService, BackupService, StatusService) {
+  function ($scope, $state, Notifications, Authentication, StateManager, SettingsService, UserService, BackupService, StatusService) {
     $scope.uploadBackup = uploadBackup;
 
     $scope.logo = StateManager.getState().application.logo;
@@ -50,7 +51,7 @@ angular.module('portainer.app').controller('InitAdminController', [
           return StateManager.initialize();
         })
         .then(function () {
-          return EndpointService.endpoints(0, 100);
+          return getEnvironments({ limit: 100 });
         })
         .then(function success(data) {
           if (data.value.length === 0) {
@@ -60,6 +61,7 @@ angular.module('portainer.app').controller('InitAdminController', [
           }
         })
         .catch(function error(err) {
+          handleError(err);
           Notifications.error('Failure', err, 'Unable to create administrator user');
         })
         .finally(function final() {
@@ -67,7 +69,25 @@ angular.module('portainer.app').controller('InitAdminController', [
         });
     };
 
+    function handleError(err) {
+      if (err.status === 303) {
+        const headers = err.headers();
+        const REDIRECT_REASON_TIMEOUT = 'AdminInitTimeout';
+        if (headers && headers['redirect-reason'] === REDIRECT_REASON_TIMEOUT) {
+          window.location.href = '/timeout.html';
+        }
+      }
+    }
+
     function createAdministratorFlow() {
+      SettingsService.publicSettings()
+        .then(function success(data) {
+          $scope.requiredPasswordLength = data.RequiredPasswordLength;
+        })
+        .catch(function error(err) {
+          Notifications.error('Failure', err, 'Unable to retrieve application settings');
+        });
+
       UserService.administratorExists()
         .then(function success(exists) {
           if (exists) {
@@ -94,6 +114,7 @@ angular.module('portainer.app').controller('InitAdminController', [
       try {
         await restoreAsyncFn();
       } catch (err) {
+        handleError(err);
         Notifications.error('Failure', err, 'Unable to restore the backup');
         $scope.state.backupInProgress = false;
 
@@ -105,6 +126,7 @@ angular.module('portainer.app').controller('InitAdminController', [
         Notifications.success('The backup has successfully been restored');
         $state.go('portainer.auth');
       } catch (err) {
+        handleError(err);
         Notifications.error('Failure', err, 'Unable to check for status');
         await wait(2);
         location.reload();

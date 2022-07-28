@@ -6,13 +6,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/asaskevich/govalidator"
 	"github.com/pkg/errors"
 	httperror "github.com/portainer/libhttp/error"
 	"github.com/portainer/libhttp/request"
 	"github.com/portainer/libhttp/response"
 	portainer "github.com/portainer/portainer/api"
-	bolterrors "github.com/portainer/portainer/api/bolt/errors"
 	"github.com/portainer/portainer/api/filesystem"
 	httperrors "github.com/portainer/portainer/api/http/errors"
 	"github.com/portainer/portainer/api/http/security"
@@ -26,12 +24,10 @@ type stackGitRedployPayload struct {
 	RepositoryUsername       string
 	RepositoryPassword       string
 	Env                      []portainer.Pair
+	Prune                    bool
 }
 
 func (payload *stackGitRedployPayload) Validate(r *http.Request) error {
-	if govalidator.IsNull(payload.RepositoryReferenceName) {
-		payload.RepositoryReferenceName = defaultGitReferenceName
-	}
 	return nil
 }
 
@@ -40,6 +36,7 @@ func (payload *stackGitRedployPayload) Validate(r *http.Request) error {
 // @description Pull and redeploy a stack via Git
 // @description **Access policy**: authenticated
 // @tags stacks
+// @security ApiKeyAuth
 // @security jwt
 // @accept json
 // @produce json
@@ -59,7 +56,7 @@ func (handler *Handler) stackGitRedeploy(w http.ResponseWriter, r *http.Request)
 	}
 
 	stack, err := handler.DataStore.Stack().Stack(portainer.StackID(stackID))
-	if err == bolterrors.ErrObjectNotFound {
+	if handler.DataStore.IsErrObjectNotFound(err) {
 		return &httperror.HandlerError{StatusCode: http.StatusNotFound, Message: "Unable to find a stack with the specified identifier inside the database", Err: err}
 	} else if err != nil {
 		return &httperror.HandlerError{StatusCode: http.StatusInternalServerError, Message: "Unable to find a stack with the specified identifier inside the database", Err: err}
@@ -81,7 +78,7 @@ func (handler *Handler) stackGitRedeploy(w http.ResponseWriter, r *http.Request)
 	}
 
 	endpoint, err := handler.DataStore.Endpoint().Endpoint(stack.EndpointID)
-	if err == bolterrors.ErrObjectNotFound {
+	if handler.DataStore.IsErrObjectNotFound(err) {
 		return &httperror.HandlerError{StatusCode: http.StatusNotFound, Message: "Unable to find the environment associated to the stack inside the database", Err: err}
 	} else if err != nil {
 		return &httperror.HandlerError{StatusCode: http.StatusInternalServerError, Message: "Unable to find the environment associated to the stack inside the database", Err: err}
@@ -122,6 +119,11 @@ func (handler *Handler) stackGitRedeploy(w http.ResponseWriter, r *http.Request)
 
 	stack.GitConfig.ReferenceName = payload.RepositoryReferenceName
 	stack.Env = payload.Env
+	if stack.Type == portainer.DockerSwarmStack {
+		stack.Option = &portainer.StackOption{
+			Prune: payload.Prune,
+		}
+	}
 
 	backupProjectPath := fmt.Sprintf("%s-old", stack.ProjectPath)
 	err = filesystem.MoveDirectory(stack.ProjectPath, backupProjectPath)
@@ -191,7 +193,11 @@ func (handler *Handler) stackGitRedeploy(w http.ResponseWriter, r *http.Request)
 func (handler *Handler) deployStack(r *http.Request, stack *portainer.Stack, endpoint *portainer.Endpoint) *httperror.HandlerError {
 	switch stack.Type {
 	case portainer.DockerSwarmStack:
-		config, httpErr := handler.createSwarmDeployConfig(r, stack, endpoint, false)
+		prune := false
+		if stack.Option != nil {
+			prune = stack.Option.Prune
+		}
+		config, httpErr := handler.createSwarmDeployConfig(r, stack, endpoint, prune)
 		if httpErr != nil {
 			return httpErr
 		}
@@ -206,14 +212,11 @@ func (handler *Handler) deployStack(r *http.Request, stack *portainer.Stack, end
 			return httpErr
 		}
 
-		if err := handler.deployComposeStack(config); err != nil {
+		if err := handler.deployComposeStack(config, true); err != nil {
 			return &httperror.HandlerError{StatusCode: http.StatusInternalServerError, Message: err.Error(), Err: err}
 		}
 
 	case portainer.KubernetesStack:
-		if stack.Namespace == "" {
-			return &httperror.HandlerError{StatusCode: http.StatusInternalServerError, Message: "Invalid namespace", Err: errors.New("Namespace must not be empty when redeploying kubernetes stacks")}
-		}
 		tokenData, err := security.RetrieveTokenData(r)
 		if err != nil {
 			return &httperror.HandlerError{StatusCode: http.StatusBadRequest, Message: "Failed to retrieve user token data", Err: err}
